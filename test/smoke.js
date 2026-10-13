@@ -17,7 +17,8 @@ import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { clipboard } from 'electron';
+import { spawn, spawnSync } from 'node:child_process';
+import { clipboard, BrowserWindow } from 'electron';
 
 /* Windows 上 electron.exe 是 GUI 子系统程序，控制台里看不到它的 stdout。
    所以每行同时写一份到文件，由 test/run_smoke.ps1 最后打出来。
@@ -296,6 +297,72 @@ export async function runSmoke(ctx) {
       if (ctx.capture.open) throw new Error('遮罩窗口还开着');
       return '按钮退出正常';
     }));
+  }
+
+  /* ---------------- 划词取词 ----------------
+     核心难题是「从另一个进程里读出选中的文字」。这里造一个我们自己的窗口当靶子：
+     完整可控、不会干扰她正在用的桌面（拿记事本试过，抢焦点会被系统限制，不靠谱）。
+     只要 UIA 或剪贴板兜底里有一条能读到，就是这个功能能用。 */
+  if (which === 'pick' || which === 'all') {
+    say('\n[划词取词]');
+    /* 这一条**不计入通过与否**：它要一个真实的前台应用，而我只能从外部跑，
+       抢不到前台焦点（试过记事本、也试过按句柄直接问 UIA）。
+       所以它只把结论报出来，好让她知道该在哪里试。 */
+    try {
+      const PROBE = 'SIDTRANS SELECTION PROBE 2026';
+      const win = new BrowserWindow({
+        show: true, width: 460, height: 220, x: 160, y: 160, alwaysOnTop: true,
+        webPreferences: { contextIsolation: true, sandbox: false }
+      });
+      try {
+        await win.loadURL('data:text/html,' + encodeURIComponent(
+          '<body style="margin:0;padding:18px;font:20px/1.6 sans-serif;background:#fff;color:#111">'
+          + '<div id="t">' + PROBE + '</div></body>'));
+        win.focus();
+        await new Promise(r => setTimeout(r, 600));
+        await win.webContents.executeJavaScript(`(function(){
+          var r = document.createRange();
+          r.selectNodeContents(document.getElementById('t'));
+          var s = getSelection(); s.removeAllRanges(); s.addRange(r);
+          return s.toString();
+        })()`);
+        await new Promise(r => setTimeout(r, 500));
+
+        const helper = path.join(ctx.ROOT, 'tools', 'pick-helper.ps1');
+        const read = (args) => {
+          const out = spawnSync('powershell.exe', ['-NoProfile', '-Sta', '-ExecutionPolicy', 'Bypass', '-File', helper, '-Once', ...args],
+            { encoding: 'utf8', timeout: 25000, windowsHide: true, maxBuffer: 2 * 1024 * 1024 });
+          const lines = String(out.stdout || '').split(/\r?\n/).map(x => x.trim()).filter(Boolean);
+          try { return JSON.parse(lines[lines.length - 1]); } catch (e) { return { t: 'err', msg: 'no json: ' + lines.slice(-1)[0] }; }
+        };
+
+        /* 按句柄问，不依赖前台焦点（我这边抢不到焦点，焦点那条没法验）：
+           这正好能回答一个真问题——Chromium 系的窗口到底折不折 UIA 的账。 */
+        const hb = win.getNativeWindowHandle();
+        const hwnd = hb.length >= 8 ? hb.readBigInt64LE(0) : BigInt(hb.readInt32LE(0));
+        const byHandle = read(['-Method', 'uia', '-Handle', String(hwnd)]);
+        const hitHandle = String(byHandle.text || '').indexOf('PROBE') !== -1;
+
+        const before = (await clipboard.readText()) || '';
+        const byClip = read(['-Method', 'clipboard']);
+        const after = (await clipboard.readText()) || '';
+        const hitClip = String(byClip.text || '').indexOf('PROBE') !== -1;
+
+        if (!hitHandle && !hitClip) {
+          say('  · 取词：这边两条路都没读到（我抢不到前台焦点，这条在这里不算数）');
+          say('    → 想真验的话：让旁译在前台选中一段字，点托盘「试一次取词」');
+        } else {
+          say('  · 取词：' + (hitHandle ? '按句柄 UIA 读到了（Chromium 也认这条路）' : 'UIA 按句柄读不到')
+            + ' · 剪贴板路' + (hitClip ? '通' : '这边没验到')
+            + (after === before ? ' · 剪贴板已还原' : ' · ⚠ 剪贴板没还原！'));
+        }
+        if (after !== before) throw new Error('读完剪贴板没还原：' + JSON.stringify(after.slice(0, 40)));
+      } finally {
+        try { win.destroy(); } catch (e) {}
+      }
+    } catch (e) {
+      say('  · 取词自检没跑完（不计入结果）：' + ((e && e.message) || e));
+    }
   }
 
   /* ---------------- ocr ---------------- */

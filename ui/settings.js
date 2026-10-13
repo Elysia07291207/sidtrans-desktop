@@ -37,15 +37,17 @@ function paintPreset() {
 
 function paintSegs() {
   [['targetMode', S.targetMode], ['engine', S.engine], ['actionMode', S.actionMode],
-   ['transStyle', S.transStyle], ['panelTheme', S.panelTheme], ['answerExplain', S.answerExplain]]
+   ['transStyle', S.transStyle], ['panelTheme', S.panelTheme], ['answerExplain', S.answerExplain],
+   ['pickMethod', (S.pick && S.pick.method) || 'auto'], ['pickNeedKey', (S.pick && S.pick.needKey) || '']]
     .forEach(([id, val]) => {
-      [...$(id).querySelectorAll('button')].forEach(b => b.classList.toggle('on', b.dataset.v === val));
+      const box = $(id);
+      if (!box) return;
+      [...box.querySelectorAll('button')].forEach(b => b.classList.toggle('on', b.dataset.v === val));
     });
 }
 
 function paint() {
-  $('clipAuto').checked = !!(S.clip && S.clip.auto);
-  $('clipGuard').checked = !(S.clip && S.clip.guard === false);
+  $('clipAuto').checked = !!(S.clip && S.clip.auto);  $('clipGuard').checked = !(S.clip && S.clip.guard === false);
   $('clipMin').value = (S.clip && S.clip.minLen) || 2;
   $('clipMax').value = (S.clip && S.clip.maxLen) || 2000;
   $('orbSize').value = (S.orb && S.orb.size) || 44;
@@ -55,6 +57,10 @@ function paint() {
   $('oa-model').value = S.openai.model || '';
   $('oa-prompt').value = S.openai.prompt || '';
   $('lc-url').value = S.local.url || '';
+  const pk = S.pick || {};
+  $('pickOn').checked = !!pk.enabled;
+  $('pickDouble').checked = pk.doubleClick !== false;
+  $('pickMin').value = pk.minLen || 3;
   const sc = S.shortcuts || {};
   $('sc-clip').value = sc.clip || '';
   $('sc-shot').value = sc.shot || '';
@@ -91,11 +97,16 @@ function buildPresetButtons() {
 }
 
 /* 每一段按钮组：点一下只改本地状态，保存时才落盘 */
-[['targetMode'], ['engine'], ['actionMode'], ['transStyle'], ['panelTheme'], ['answerExplain']]
+[['targetMode'], ['engine'], ['actionMode'], ['transStyle'], ['panelTheme'], ['answerExplain'],
+ ['pickMethod'], ['pickNeedKey']]
   .forEach(([id]) => {
-    $(id).addEventListener('click', (e) => {
+    const box = $(id);
+    if (!box) return;
+    box.addEventListener('click', (e) => {
       const b = e.target.closest('button[data-v]');
       if (!b) return;
+      if (id === 'pickMethod') { S.pick = Object.assign({}, S.pick, { method: b.dataset.v }); paint(); return; }
+      if (id === 'pickNeedKey') { S.pick = Object.assign({}, S.pick, { needKey: b.dataset.v }); paint(); return; }
       S[id] = b.dataset.v;
       paint();
     });
@@ -126,7 +137,14 @@ function collect() {
       model: $('oa-model').value.trim(),
       prompt: $('oa-prompt').value
     },
-    local: { url: $('lc-url').value.trim() }
+    local: { url: $('lc-url').value.trim() },
+    pick: {
+      enabled: $('pickOn').checked,
+      method: (S.pick && S.pick.method) || 'auto',
+      needKey: (S.pick && S.pick.needKey) || '',
+      minLen: Math.max(1, Math.min(50, parseInt($('pickMin').value, 10) || 3)),
+      doubleClick: $('pickDouble').checked
+    }
   };
   /* Key 只在真的填了才写：留空 = 「不改」，不然每次保存都会把它抹掉 */
   const k = $('oa-key').value.trim();

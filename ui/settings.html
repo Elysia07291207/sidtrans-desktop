@@ -143,6 +143,35 @@
   </div>
 
   <div class="card">
+    <h2>划词即译（实验，默认关）</h2>
+    <div class="chk"><input type="checkbox" id="pickOn"><span>打开：鼠标拖选、双击选词之后，它自己取词来翻（不用再按 Ctrl+C）</span></div>
+    <div class="row"><label>取词方式</label>
+      <span class="seg" id="pickMethod">
+        <button data-v="auto">自动</button>
+        <button data-v="uia">只读选中</button>
+        <button data-v="clipboard">复制读剪贴板</button>
+      </span>
+    </div>
+    <div class="row"><label>需要按住</label>
+      <span class="seg" id="pickNeedKey">
+        <button data-v="">不用</button>
+        <button data-v="alt">Alt</button>
+        <button data-v="ctrl">Ctrl</button>
+        <button data-v="shift">Shift</button>
+      </span>
+    </div>
+    <div class="row"><label>最短长度</label>
+      <input type="number" id="pickMin" min="1" max="50" style="max-width:90px">
+      <span style="color:var(--tx3);font-size:12px">字符（太短的不取）</span>
+    </div>
+    <div class="chk"><input type="checkbox" id="pickDouble"><span>双击选词也算一次</span></div>
+    <div class="hint tight">
+      「自动」= 先问焦点控件「你选中的是什么」（不碰剪贴板），问不到才模拟一次 Ctrl+C 去读剪贴板，<b>读完立刻把原来的剪贴板还回去</b>。
+      浏览器里的网页多半得走第二条路。嫌误触就选「需要按住 Alt」——拖选时按着它才取词。
+    </div>
+  </div>
+
+  <div class="card">
     <h2>快捷键</h2>
     <div class="row"><label>翻译剪贴板</label><input type="text" id="sc-clip"></div>
     <div class="row"><label>截屏取字</label><input type="text" id="sc-shot"></div>

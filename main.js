@@ -13,6 +13,7 @@
  */
 
 import { app, BrowserWindow, Tray, Menu, globalShortcut, clipboard, ipcMain, screen, nativeImage, protocol, shell } from 'electron';
+import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -23,6 +24,7 @@ import { createEngine, DEFAULT_SETTINGS, detectLang } from './lib/engine.js';
 import { createClipWatcher, SKIP_TEXT, looksLikeSecret } from './lib/clipwatch.js';
 import { createOcrHost } from './lib/ocr.js';
 import { createCapture } from './lib/capture.js';
+import { createPickHelper } from './lib/pickhelper.js';
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const SCHEME = 'sidtrans';
@@ -111,7 +113,8 @@ const engine = createEngine({
 });
 
 let orbWin = null, panelWin = null, tray = null, settingsWin = null;
-let ocrHost = null, capture = null;
+let ocrHost = null, capture = null, pickHelper = null;
+let lastPick = '';
 let lastResult = null;
 let lastText = '';
 let quitting = false;
@@ -239,6 +242,7 @@ function publicSettings() {
     clip: Object.assign({}, s.clip),
     shortcuts: Object.assign({}, s.shortcuts),
     orb: Object.assign({}, s.orb),
+    pick: Object.assign({}, s.pick),
     openai: { baseUrl: s.openai.baseUrl, model: s.openai.model, prompt: s.openai.prompt, hasKey: !!s.openai.apiKey },
     local: { url: s.local.url }
   };
@@ -344,6 +348,96 @@ async function shotAndOcr() {
   }
 }
 
+/* ------------------------------------------------------------ 划词即译（取词帮手） */
+
+/* 我们自己的窗口句柄：她要在面板里选字，不该再触发一次翻译 */
+function hwndOf(win) {
+  try {
+    if (!win || win.isDestroyed()) return '';
+    const b = win.getNativeWindowHandle();
+    return String(b.length >= 8 ? b.readBigInt64LE(0) : b.readInt32LE(0));
+  } catch (e) { return ''; }
+}
+function ourHwnds() {
+  return [orbWin, panelWin, settingsWin].map(hwndOf).filter(Boolean);
+}
+
+function onPickEvent(ev) {
+  if (!ev) return;
+  if (ev.t === 'ready') {
+    log('[取词] 帮手就绪 pid=' + ev.pid + ' 方式=' + ev.method
+      + (ev.needKey ? ' 需按住 ' + ev.needKey : '') + (ev.skipApps ? ' 跳过 ' + ev.skipApps : ''));
+    return;
+  }
+  if (ev.t === 'err') { log('[取词] 帮手报错：' + ev.msg); return; }
+  if (ev.t !== 'sel') return;
+
+  const s = store.getSettings();
+  const p = s.pick || {};
+  const text = String(ev.text == null ? '' : ev.text).trim();
+  if (!text) return;                                    /* 没选中东西（比如只是拖了个窗口） */
+  if (ourHwnds().indexOf(String(ev.hwnd)) !== -1) return;  /* 在我们自己的窗口里选的，不管 */
+  if (text.length < (p.minLen || 3)) return;
+  if (text.length > (p.maxLen || 2000)) { toastOrb('这段太长，划词没取（按 Ctrl+Alt+T 手动翻）'); return; }
+  if (text === lastPick) return;                        /* 同一段不重复翻 */
+  if (p.guard !== false && looksLikeSecret(text)) { toastOrb('这段像密钥/令牌，我没翻'); return; }
+
+  lastPick = text;
+  log('[取词] 取到 ' + text.length + ' 字（' + (ev.how || '?') + ' · ' + (ev.app || '?') + ' · ' + ev.ms + 'ms'
+    + (ev.restored ? ' · 剪贴板已还原' : '') + '）');
+  translateAndShow(text, { source: '划词' });
+}
+
+/* 手动试一次：拿当前前台应用读一次选中，把结果说出来。
+   为什么要有这个：取词这条路严重依赖「前台焦点」，而那东西从外部很难模拟——
+   她自己点一下托盘就能在五秒内知道「这个应用究竟取不取得到」。 */
+function tryOnePick() {
+  const fw = spawn ? null : null;
+  try {
+    const out = execFileSync('powershell.exe', ['-NoProfile', '-Sta', '-ExecutionPolicy', 'Bypass',
+      '-File', path.join(ROOT, 'tools', 'pick-helper.ps1'), '-Once', '-Method', 'auto', '-Handle', '0'],
+      { encoding: 'utf8', timeout: 25000, windowsHide: true, maxBuffer: 2 * 1024 * 1024 });
+    const lines = String(out || '').split(/\r?\n/).map(x => x.trim()).filter(Boolean);
+    let r = null;
+    try { r = JSON.parse(lines[lines.length - 1]); } catch (e) {}
+    if (!r || r.t !== 'sel') { toastOrb('取词没回话（看看日志）'); log('[取词] 试一次：没回话 ' + (lines.slice(-1)[0] || '')); return; }
+    const text = String(r.text || '').trim();
+    log('[取词] 试一次：' + (text ? ('取到 ' + text.length + ' 字，走 ' + r.how) : '没取到') + ' · 前台=' + (r.app || '?'));
+    if (!text) { toastOrb('没取到字（前台：' + (r.app || '?') + '）——这个应用可能不走这两条路'); return; }
+    toastOrb('取到了 ' + text.length + ' 字（' + (r.how === 'uia' ? '直接读选中' : '走剪贴板') + '）');
+    translateAndShow(text, { source: '取词试一次' });
+  } catch (e) {
+    toastOrb('取词试一次失败：' + String((e && e.message) || e).slice(0, 40));
+    log('[取词] 试一次出错：' + ((e && e.message) || e));
+  }
+}
+
+function applyPickSetting() {
+  const s = store.getSettings();
+  const p = s.pick || {};
+  if (p.enabled) {
+    if (!pickHelper) {
+      pickHelper = createPickHelper({
+        script: path.join(ROOT, 'tools', 'pick-helper.ps1'),
+        log: (m) => log(m),
+        onEvent: onPickEvent
+      });
+    }
+    if (!pickHelper.running) {
+      pickHelper.start({
+        method: p.method || 'auto',
+        minDrag: p.minDrag != null ? p.minDrag : 6,
+        delayMs: p.delayMs != null ? p.delayMs : 150,
+        needKey: p.needKey || '',
+        skipApps: p.skipApps || 'explorer',
+        doubleClick: p.doubleClick !== false
+      });
+    }
+  } else if (pickHelper) {
+    pickHelper.stop();
+  }
+}
+
 /* ------------------------------------------------------------ 托盘 */
 function trayMenu() {
   const s = store.getSettings();
@@ -365,6 +459,19 @@ function trayMenu() {
     {
       label: '躲开密钥/令牌', type: 'checkbox', checked: (s.clip && s.clip.guard !== false),
       click: (mi) => { store.patchSettings({ clip: { guard: mi.checked } }); refreshTray(); }
+    },
+    { type: 'separator' },
+    {
+      label: '划词即译（实验）', type: 'checkbox', checked: !!(s.pick && s.pick.enabled),
+      click: (mi) => {
+        store.patchSettings({ pick: { enabled: mi.checked } });
+        applyPickSetting();
+        refreshTray();
+        toastOrb(mi.checked ? '划词即译已开' : '划词即译已关');
+      }
+    },
+    {
+      label: '试一次取词（看现在前台能不能取到）', click: () => tryOnePick()
     },
     { type: 'separator' },
     { label: '设置…', click: () => openSettings() },
@@ -406,6 +513,7 @@ function registerIpc() {
     if (!patch || typeof patch !== 'object') return publicSettings();
     store.patchSettings(patch);
     rebindShortcuts();
+    applyPickSetting();
     refreshTray();
     if (orbWin && !orbWin.isDestroyed()) {
       orbWin.webContents.send('st:settings', publicSettings());
@@ -545,6 +653,7 @@ app.whenReady().then(async () => {
   createOrb();
   createTray();
   rebindShortcuts();
+  applyPickSetting();
   watcher.start();
 
   /* OCR 引擎在后台悄悄预热：第一次真要取字时就不用等模型加载 */
@@ -573,6 +682,7 @@ app.on('before-quit', () => { quitting = true; });
 app.on('will-quit', () => {
   globalShortcut.unregisterAll();
   try { watcher.stop(); } catch (e) {}
+  try { pickHelper && pickHelper.stop(); } catch (e) {}
   try { ocrHost && ocrHost.destroy(); } catch (e) {}
   try { capture && capture.reset(); } catch (e) {}
 });

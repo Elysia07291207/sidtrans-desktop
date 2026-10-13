@@ -31,6 +31,12 @@ const pageUrl = (p) => APP_ORIGIN + '/' + p;
 const PRELOAD = path.join(ROOT, 'ui', 'preload.cjs');
 const IS_SMOKE = process.argv.some(a => a.startsWith('--smoke'));
 
+/* 数据目录固定成一个 ASCII 名字，别跟着 productName 走。
+   两个理由：① 中文路径在不同工具链里反复出问题（今天 Tesseract 就栽在这上面），
+   ② “设置文件到底在哪”这件事不该随 productName 改一个字就搬家。
+   必须在使用它之前定下来，所以放在模块顶部。 */
+app.setPath('userData', path.join(app.getPath('appData'), 'sidtrans-desktop'));
+
 /* 自定义协议：给所有窗口一个正常的源。
    这不是花活——Tesseract 的 Worker 在 file:// 下会被浏览器内核挡掉
    （「Script at 'file:///…' cannot be accessed from origin 'null'」），

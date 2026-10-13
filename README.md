@@ -58,7 +58,14 @@ npm install                     # 依赖（Electron + Tesseract）
 #   $env:ELECTRON_MIRROR="https://npmmirror.com/mirrors/electron/"; node node_modules\electron\install.js
 
 npm run vendor                  # 把 OCR 依赖从 node_modules 搬进 vendor/（十几兆，不入库）
-npm start                       # 起球
+```
+
+起球有两条路：
+
+1. **双击项目根目录的 `启动桌面版.cmd`**（推荐）。
+   它会先把 Electron 运行时拷到 `%LOCALAPPDATA%\Programs\sidtrans-desktop\electron\`
+   再从那儿启动——原因见下面第 0 条坑（Electron 不能在中文路径里跑）。
+2. `npm start`。只在该项目路径**本身就是纯 ASCII** 时才管用。
 ```
 
 自检三条，按能跑的程度分：
@@ -123,15 +130,32 @@ npm run smoke                   # ④ 整机：真的 Electron 里跑球、面�
 
 ## 已知的坑（都踩过，别再踩）
 
+0. **桌面版不能放在带中文的路径下跑**（这是最致命的那个）。
+   Electron 如果自己的 `electron.exe` 在非 ASCII 路径里（比如 `工作区\旁译桌面版\`），
+   会在加载自身资源那一步**直接崩掉**，退出码 `-2147483645`（0x80000003），
+   JS 一行都没跑到。实测：同一个二进制换到 `C:\elascii\electron.exe` 就一切正常。
+   所以 `启动桌面版.cmd` 会把运行时先拷到 `%LOCALAPPDATA%\Programs\sidtrans-desktop\electron\`
+   （纯 ASCII），再从那跑；项目本身（含中文路径）不用动。
+   用 junction/符号链接绕不过去：系统会把路径还原成中文那份，照样崩。
+
 1. **Tesseract 的语言顺序会决定第二个语言能不能加载**。实测：`eng+chi_sim` 中英都认得出；
    `chi_sim+eng` 时英文那张图准度从 50 掉到 18（第二个语言根本没加载上，还报了个乱码文件名）。
    所以 `lib/ocrtext.js` 里的 `OCR_LANGS` 是 `['eng','chi_sim']`——**改顺序前先跑 `test/ocr_engine.mjs`**。
-2. **`workerBlobURL: false` 不能省**（浏览器版被 CSP 挡过，报错还是个 `undefined`）。
-3. **Electron 的窗口别用 `-webkit-app-region: drag`**：挂了它的元素收不到 click，球就点不动了。
+2. **Electron 40+ 的剪贴板读取是异步的**（`clipboard.readText()` 返回 Promise）。
+   当同步用会拿到 `[object Promise]`——症状是「复制了字它什么都不做」，
+   而且不报错、不弹窗，从界面上看不出任何异常。写（`writeText`）也是 Promise。
+   已修：看守 `await` 读值，并对「交回来的是 Promise」加了一道防守。
+3. **判语言要用刚复制进来的那段，不是上一次翻过的那段**。
+   拿错的那次，启动后第一次复制会被判成「没认出可翻的文字」直接跳过——同样是静默失败。
+4. **`workerBlobURL: false` 不能省**（浏览器版被 CSP 挡过，报错还是个 `undefined`）。
+5. **Electron 的窗口别用 `-webkit-app-region: drag`**：挂了它的元素收不到 click，球就点不动了。
    这里的拖拽是自己算位移的（位移小于 3px 算「点了」）。
-4. **复制出去的译文要记一笔**，否则看守会当成新内容再翻一遍——回环，看着像自己抽风。
-5. **截图先冻屏再框选**，不要「先框选再截屏」：那样遮罩自己会被拍进镜头。
-6. **`.ps1` 改完要重新加 UTF-8 BOM**（PowerShell 5.1 会按 GBK 读，中文注释直接把它读崩）。
+6. **透明窗口的 `ready-to-show` 不一定会触发**：球曾因地在屏幕上不出现。
+   现在除监听事件外还加了一个 1.5 秒的兑底，没显就手动 show。
+7. **复制出去的译文要记一笔**，否则看守会当成新内容再翻一遍——回环，看着像自己抽风。
+8. **截图先冻屏再框选**，不要「先框选再截屏」：那样遮罩自己会被拍进镜头。
+9. **`.ps1` 改完要重新加 UTF-8 BOM**；`.cmd` 要 GBK + CRLF，而且里面如果写了中文路径，
+   开头必须 `chcp 936`，否则路径会被当成乱码（我在这上面白跑过三次）。
 
 ---
 

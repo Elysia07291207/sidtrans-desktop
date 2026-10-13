@@ -85,7 +85,8 @@ export async function runSmoke(ctx) {
      两头都先存下来，结束时原样还回去——自检不该在地的机器上留下痕迹。 */
   const settingsBackup = JSON.parse(JSON.stringify(ctx.store.getSettings()));
   let clipBackup = '';
-  try { clipBackup = clipboard.readText() || ''; } catch (e) {}
+  /* Electron 40+ 的剪贴板读取是异步的，得 await */
+  try { clipBackup = (await clipboard.readText()) || ''; } catch (e) {}
 
   try {
   /* ---------------- ui ---------------- */
@@ -102,9 +103,12 @@ export async function runSmoke(ctx) {
 
     say('\n[ui]');
     await check('球起来了并且是可见的', async () => {
-      const w = ctx.orbWin;
-      if (!w || w.isDestroyed()) throw new Error('orbWin 不存在');
-      if (!w.isVisible()) throw new Error('球不可见');
+      const w = await waitFor(() => {
+        const x = ctx.orbWin;
+        return (x && !x.isDestroyed()) ? x : null;
+      }, { what: '球窗口' });
+      /* 给 ready-to-show 留时间（透明窗口在某些版本上不触发它，主进程里有兜底） */
+      await waitFor(() => w.isVisible(), { timeout: 15000, what: '球变成可见' });
       return w.getBounds().width + '×' + w.getBounds().height;
     });
 
@@ -140,31 +144,35 @@ export async function runSmoke(ctx) {
     });
 
     await check('剪贴板真的读得到（走真实 API，不是桩）', async () => {
-      clipboard.writeText('旁译冒烟测试剪贴板');
-      ctx.watcher.tick();
+      await clipboard.writeText('旁译冒烟测试剪贴板');
+      await ctx.watcher.tick();
       const t0 = Date.now();
       while (ctx.watcher.lastSeen !== '旁译冒烟测试剪贴板' && Date.now() - t0 < 3000) await sleep(60);
-      if (ctx.watcher.lastSeen !== '旁译冒烟测试剪贴板') throw new Error('看守没读到剪贴板：' + ctx.watcher.lastSeen);
+      if (ctx.watcher.lastSeen !== '旁译冒烟测试剪贴板') throw new Error('看守没读到剪贴板：' + JSON.stringify(ctx.watcher.lastSeen));
       return '看守看见了';
     });
 
     await check('复制 → 自动翻 → 面板跟着变（整条主路径）', async () => {
-      clipboard.writeText('Second sentence for smoke.');
-      ctx.watcher.tick();
+      await clipboard.writeText('Second sentence for smoke.');
+      await ctx.watcher.tick();
       const w = ctx.panelWin;
       const got = await waitFor(async () => {
         const r = await w.webContents.executeJavaScript(`document.querySelector('.st-src').textContent`);
         return r === 'Second sentence for smoke.' ? r : null;
       }, { what: '面板原文更新为新的剪贴板内容' });
-      const dst = await w.webContents.executeJavaScript(`document.querySelector('.st-dst').textContent`);
-      if (dst !== '[桩] Second sentence for smoke.') throw new Error('译文不是桩返回的内容：' + dst);
+      /* 原文一更新就读译文是抢跑：那一刻面板还写着「翻译中…」。
+         等译文真的落地再断言（等的是期望本身，不是拍一个固定秒数）。 */
+      const dst = await waitFor(async () => {
+        const v = await w.webContents.executeJavaScript(`document.querySelector('.st-dst').textContent`);
+        return v === '[桩] Second sentence for smoke.' ? v : null;
+      }, { what: '译文换成桩返回的内容（原文：' + got + '）' });
       return '原文 + 译文都对';
     });
 
     await check('像密钥的一串不自动翻（闸门生效）', async () => {
       const before = ctx.watcher.lastSeen;
-      clipboard.writeText('gho_' + 'A1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6');
-      ctx.watcher.tick();
+      await clipboard.writeText('gho_' + 'A1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6');
+      await ctx.watcher.tick();
       await sleep(300);
       if (ctx.watcher.lastSeen !== before) throw new Error('它把密钥那串也当成新内容了');
       if (ctx.watcher.stats.translated < 2) throw new Error('前面的翻译没记账');
@@ -175,7 +183,7 @@ export async function runSmoke(ctx) {
       const before = ctx.watcher.stats.translated;
       /* 走真实的复制通道：它应该记住这一次是自己写的 */
       await ctx.copyText('[桩] Second sentence for smoke.');
-      ctx.watcher.tick();
+      await ctx.watcher.tick();
       await sleep(200);
       if (ctx.watcher.stats.translated !== before) throw new Error('自己写的被当成新内容翻了一遍');
       return '没有回环';
@@ -270,7 +278,7 @@ export async function runSmoke(ctx) {
   } finally {
     /* 把她机器上的东西还回去 */
     try { ctx.store.replaceSettings(settingsBackup); } catch (e) {}
-    try { clipboard.writeText(clipBackup); } catch (e) {}
+    try { await clipboard.writeText(clipBackup); } catch (e) {}
     say('  （设置与剪贴板已还原）');
   }
 

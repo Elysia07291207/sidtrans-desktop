@@ -133,7 +133,12 @@ function createOrb() {
   orbWin.setAlwaysOnTop(true, 'screen-saver');
   orbWin.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
   orbWin.loadURL(pageUrl('ui/orb.html'));
-  orbWin.once('ready-to-show', () => orbWin.show());
+  orbWin.once('ready-to-show', () => { try { orbWin.show(); } catch (e) {} });
+  /* 兑底：透明窗口的 ready-to-show 在某些版本上不触发（实测遇到过球不出来的情形）。
+     过一秒半再看一眼，还没显就手动显——球不出来的话，整个东西就白做了。 */
+  setTimeout(() => {
+    try { if (orbWin && !orbWin.isDestroyed() && !orbWin.isVisible()) orbWin.show(); } catch (e) {}
+  }, 1500);
   orbWin.on('closed', () => { orbWin = null; });
 
   /* 球挪走了，记住位置；面板跟着它走 */
@@ -234,20 +239,22 @@ function publicSettings() {
 
 /* ------------------------------------------------------------ 剪贴板路径 */
 const watcher = createClipWatcher({
+  /* ⚠️ Electron 40+ 的剪贴板读取是异步的（返回 Promise），这里原样交回去，
+     由看守 await。当同步用会拿到 [object Promise]——那样的话「复制了字它什么都不做」。 */
   readText: () => {
-    try { return clipboard.readText() || ''; } catch (e) { return ''; }
+    try { return clipboard.readText(); } catch (e) { return ''; }
   },
   intervalMs: (store.getSettings().clip && store.getSettings().clip.intervalMs) || 700,
-  getOpt: () => {
+  getOpt: (text) => {
     const s = store.getSettings();
-    const t = lastClipText;
     return {
       auto: !!(s.clip && s.clip.auto),
       paused: !!(s.clip && s.clip.paused),
       minLen: (s.clip && s.clip.minLen) || 2,
       maxLen: (s.clip && s.clip.maxLen) || 2000,
       guard: (s.clip && s.clip.guard !== false),
-      lang: detectLang(t)
+      /* 判语言要用「刚复制进来的这段」，不是上一次翻过的那段 */
+      lang: detectLang(text || '')
     };
   },
   onDecide: (d, text) => { onClipDecision(d, text); }
@@ -449,11 +456,12 @@ function registerIpc() {
 
 /* 往剪贴板写东西（复制译文 / 复制我写的）。
    写的时候必须记一笔：否则看守会以为「剪贴板变新的了」，把刚复制出去的译文
-   又翻一遍——回环，而且看上去像自己抽风。 */
-function copyToClipboard(text) {
+   又翻一遍——回环，而且看上去像自己抽风。
+   writeText 在各版本里可能是同步也可能返回 Promise，所以 await 一下两种都兼容。 */
+async function copyToClipboard(text) {
   const t = String(text == null ? '' : text);
   try {
-    clipboard.writeText(t);
+    await clipboard.writeText(t);
     watcher.rememberOwnWrite(t);
     watcher.lastSeen = t;
     lastClipText = t;
@@ -464,9 +472,9 @@ function copyToClipboard(text) {
 /* 「翻译剪贴板」是明确的手动动作：
    这时候不再问长度、也不再拦密钥——她按了就是她要翻。
    闸门只在自动那条路上生效。 */
-function manualFromClipboard() {
+async function manualFromClipboard() {
   let t = '';
-  try { t = clipboard.readText() || ''; } catch (e) {}
+  try { t = (await clipboard.readText()) || ''; } catch (e) {}
   t = String(t).trim();
   if (!t) { toastOrb('剪贴板里没有文字'); return null; }
   lastClipText = t;

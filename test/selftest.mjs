@@ -436,23 +436,56 @@ console.log('\n[4] 剪贴板闸门');
     let text = 'first message';
     const seen = [];
     const w = createClipWatcher({
-      readText: () => text,
+      /* 故意用 async：Electron 40+ 的剪贴板读取就是 Promise，
+         当同步用的话会拿到 [object Promise]——那样「复制了字它什么都不做」。 */
+      readText: async () => text,
       intervalMs: 10,
-      getOpt: () => ({ minLen: 2, maxLen: 200, auto: true, paused: false, guard: true, lang: detectLang(text) }),
+      getOpt: (t) => ({ minLen: 2, maxLen: 200, auto: true, paused: false, guard: true, lang: detectLang(t || '') }),
       onDecide: (d, txt) => seen.push(d.action + ':' + d.reason + ':' + txt)
     });
-    w.tick();                       /* 第一次：新内容 → 翻 */
-    w.tick();                       /* 没变 → 不动，而且不该每次都来通报一声 */
+    await w.tick();                 /* 第一次：新内容 → 翻 */
+    await w.tick();                 /* 没变 → 不动，而且不该每次都来通报一声 */
     text = 'second message';
-    w.tick();
+    await w.tick();
     w.rememberOwnWrite('my own translation');
     text = 'my own translation';
-    w.tick();                       /* 自己写的 → 不动 */
+    await w.tick();                 /* 自己写的 → 不动 */
     eq(w.stats.translated, 2, '应该只翻了两次');
     eq(seen.length, 3, '未变化的轮次应当静默（每 0.7 秒通报一次就是刷屏）：' + JSON.stringify(seen));
     eq(seen[2], 'skip:own-write:my own translation');
     assert(seen.every(s => s.indexOf('unchanged') === -1), 'unchanged 不该被通报');
     return JSON.stringify(w.stats);
+  });
+
+  await ta('看守：语言判定看的是「刚复制进来的这段」，不是上一段', async () => {
+    /* 踩过：拿上一次翻过的文本去判语言，启动后第一次复制就被当成「没认出可翻的文字」跳过了 */
+    const seen = [];
+    let text = 'Hello there';
+    const w = createClipWatcher({
+      readText: async () => text,
+      intervalMs: 10,
+      /* 这份 getOpt 故意「用参数里的 t」——正是主进程那份的写法 */
+      getOpt: (t) => ({ minLen: 2, maxLen: 200, auto: true, paused: false, guard: true, lang: detectLang(t || '') }),
+      onDecide: (d) => seen.push(d.reason)
+    });
+    await w.tick();
+    eq(seen[0], 'new-text', '第一次复制就该翻：' + JSON.stringify(seen));
+    return 'ok';
+  });
+
+  await ta('看守：读出来是 Promise 也不会把 [object Promise] 当正文', async () => {
+    let text = 'promise based read';
+    const got = [];
+    const w = createClipWatcher({
+      readText: () => Promise.resolve(text),
+      intervalMs: 10,
+      getOpt: (t) => ({ minLen: 2, maxLen: 200, auto: true, paused: false, guard: true, lang: detectLang(t || '') }),
+      onDecide: (d, txt) => got.push(txt)
+    });
+    await w.tick();
+    eq(w.lastSeen, 'promise based read', '没把 Promise 解开');
+    assert(got[0].indexOf('object Promise') === -1, '把 [object Promise] 当成正文了');
+    return w.lastSeen;
   });
 }
 

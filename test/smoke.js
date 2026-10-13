@@ -242,6 +242,14 @@ export async function runSmoke(ctx) {
       } finally { try { w.destroy(); } catch (e) {} }
     });
 
+    await check('托盘那个「试一次取词」不会抛错（曾经因为一行引用了不存在的变量而挂掉）', async () => {
+      /* 不指望它取到字（自检时前台不一定有选中），只要它不抱错就行。
+         这类「引用了不存在的变量」的错误 node --check 是看不出来的，
+         只有真的调一下才会现形——所以用这条把它盯住。 */
+      await ctx.tryOnePick();
+      return '没抛错';
+    });
+
     stub.srv.close();
   }
 

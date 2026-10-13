@@ -91,11 +91,23 @@ const store = createStore({
   defaults: DEFAULT_SETTINGS
 });
 
-/* 出错记录：只记步骤与错误，不记内容。控制台也打一份，方便我看。
-   冒烟模式下 stdout 是拿不到的（GUI 子系统），所以那时额外写进冒烟那份日志。 */
+/* 出错记录：只记步骤与错误，不记内容。
+   同时落一份到 %APPDATA%\sidtrans-desktop\run.log（滚动，封顶 256KB）：
+   从前只往控制台写，结果她那边出了事我什么都看不见——只能靠她复述。
+   ⚠️ 只记步骤与计数，**绝不记内容**（不记她翻的是什么、选中了什么）。 */
 function log(...a) {
   const line = a.map(x => (typeof x === 'string' ? x : JSON.stringify(x))).join(' ');
   try { console.log(line); } catch (e) {}
+  try {
+    const f = path.join(app.getPath('userData'), 'run.log');
+    fs.appendFileSync(f, new Date().toISOString().slice(11, 19) + ' ' + line + '\n');
+    const st = fs.statSync(f);
+    if (st.size > 256 * 1024) {
+      /* 滚动：只留最后那段，不让她机器上无端长出一个大文件 */
+      const keep = fs.readFileSync(f, 'utf8').split('\n').slice(-800).join('\n');
+      fs.writeFileSync(f, keep);
+    }
+  } catch (e) {}
   if (IS_SMOKE) {
     try { fs.appendFileSync(path.join(ROOT, 'test', '_smoke-last.txt'), '     · ' + line + '\n'); } catch (e) {}
   }
@@ -392,7 +404,6 @@ function onPickEvent(ev) {
    为什么要有这个：取词这条路严重依赖「前台焦点」，而那东西从外部很难模拟——
    她自己点一下托盘就能在五秒内知道「这个应用究竟取不取得到」。 */
 function tryOnePick() {
-  const fw = spawn ? null : null;
   try {
     const out = execFileSync('powershell.exe', ['-NoProfile', '-Sta', '-ExecutionPolicy', 'Bypass',
       '-File', path.join(ROOT, 'tools', 'pick-helper.ps1'), '-Once', '-Method', 'auto', '-Handle', '0'],
@@ -665,7 +676,7 @@ app.whenReady().then(async () => {
       app, store, engine, ocrHost, capture, watcher,
       get orbWin() { return orbWin; },
       get panelWin() { return panelWin; },
-      showPanel, hidePanel, translateAndShow, manualFromClipboard, shotAndOcr,
+      showPanel, hidePanel, translateAndShow, manualFromClipboard, shotAndOcr, tryOnePick,
       copyText: copyToClipboard,
       publicSettings, pageUrl, ROOT
     });

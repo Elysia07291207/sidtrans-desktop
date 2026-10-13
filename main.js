@@ -394,7 +394,11 @@ function onPickEvent(ev) {
   const s = store.getSettings();
   const p = s.pick || {};
   const text = String(ev.text == null ? '' : ev.text).trim();
-  if (!text) return;                                    /* 没选中东西（比如只是拖了个窗口） */
+  if (!text) {
+    /* 拖选没取到也要记一笔：不然日志里只有成功的记录，看不出「这个应用到底行不行」 */
+    log('[取词] 拖选没取到（uia=' + (ev.uia || '-') + ' 复制=' + (ev.chord || '无') + ' 前台=' + (ev.app || '?') + '）');
+    return;
+  }
   if (ourHwnds().indexOf(String(ev.hwnd)) !== -1) return;  /* 在我们自己的窗口里选的，不管 */
   if (text.length < (p.minLen || 3)) return;
   if (text.length > (p.maxLen || 2000)) { toastOrb('这段太长，划词没取（按 Ctrl+Alt+T 手动翻）'); return; }
@@ -413,6 +417,19 @@ function onPickEvent(ev) {
    于是它去问「旁译的窗口里选了什么」——当然什么都没有。她的日志里就是三条
    「前台=electron」。所以现在改成：**先给她 3 秒去切回目标应用选好字**，
    再读；而且结果写进面板（看得见、留得住），不再只靠一个 2.2 秒的小气泡。 */
+/* 取词失败时把「到底哪一种」说清楚。
+   之前只说「没读到选中」，她分不清是「自己没选中」还是「这个应用读不到」——
+   这两件事该怎么办完全不同，所以得分开说。 */
+function pickFailReason(r) {
+  const parts = [];
+  if (r.uia === 'no-pattern') parts.push('· 直接读选中：这个控件不支持读选中（浏览器、自绘界面多是这类）');
+  else if (r.uia === 'no-sel') parts.push('· 直接读选中：支持，但当时没有选中内容');
+  else if (r.uia === 'err') parts.push('· 直接读选中：接口报错');
+  if (r.chord) parts.push('· 复制读剪贴板：' + r.chord + ' 复制到了东西，但里面没有文字（像是图片或文件）');
+  else parts.push('· 复制读剪贴板：Ctrl+C 和 Ctrl+Insert 都按了，剪贴板没动静');
+  return parts.join('\n');
+}
+
 async function tryOnePick() {
   try {
     hidePanel();                                  /* 面板可能挡着她要看的东西 */
@@ -435,19 +452,23 @@ async function tryOnePick() {
     }
 
     const text = String(r.text || '').trim();
-    log('[取词] 试一次：' + (text ? ('取到 ' + text.length + ' 字，走 ' + r.how) : '没取到')
+    log('[取词] 试一次：' + (text ? ('取到 ' + text.length + ' 字，走 ' + r.how)
+      : ('没取到（uia=' + (r.uia || '-') + ' chord=' + (r.chord || '无') + '）'))
       + ' · 前台=' + (r.app || '?') + (r.restored ? ' · 剪贴板已还原' : ''));
 
     if (!text) {
       toastOrb('没取到字（前台：' + (r.app || '?') + '）');
-      /* 写进面板：说清是哪个应用不配合，而不是只闪一下让她错过 */
+      /* 写进面板：把「哪一种情况 + 下一步怎么办」说清，而不是只闪一下 */
+      const why = pickFailReason(r);
+      const hint = (r.uia === 'no-sel' || (!r.chord && r.uia !== 'no-pattern'))
+        ? '\n→ 看着像是没选中：把字选好，再点一次这个菜单项。'
+        : '\n→ 这个应用两条路都不走。要是它本来就没什么可选的字（游戏、视频播放器这类），那就正常；\n'
+          + '　 要试就在真文字上试：浏览器、Word、记事本。——另外，选中 → Ctrl+C 那条旧路一直都能用。';
       showPanel({
         text: '',
         result: {
           ok: false, mode: 'translate',
-          error: '取词测试：没读到选中。当时的前台应用是「' + (r.app || '未知') + '」。\n'
-            + '如果那不是你刚才选字的应用，就说明切过去的时间不够（再试一次，把字先选好）。\n'
-            + '如果就是它，那这个应用不走这两条取词路。'
+          error: '取词测试：没读到字。\n当时前台：' + (r.app || '未知') + '\n' + why + hint
         }
       });
       return;

@@ -81,6 +81,11 @@ function Get-ForegroundInfo {
 }
 
 # ---- 路一：无障碍接口。只读，不动剪贴板 ----
+# 返回 @{ text; state }，state 用来分辨到底是哪种情况：
+#   got        读到了
+#   no-pattern 这个控件根本不支持读选中（Chromium 系、自绘界面多属这类）
+#   no-sel     支持，但当前没选中东西
+#   err        接口本身报错
 # $useHandle > 0 时直接问那个窗口的元素（自检用，不依赖前台焦点）；
 # 否则问焦点控件（产品里用的就是这条）。
 function Read-SelectionUia([int64]$useHandle = 0) {
@@ -90,21 +95,42 @@ function Read-SelectionUia([int64]$useHandle = 0) {
     } else {
       $el = [System.Windows.Automation.AutomationElement]::FocusedElement
     }
-    if (-not $el) { return '' }
+    if (-not $el) { return @{ text = ''; state = 'err' } }
     $pat = $null
     $ok = $el.TryGetCurrentPattern([System.Windows.Automation.TextPattern]::Pattern, [ref]$pat)
-    if (-not $ok -or -not $pat) { return '' }
+    if (-not $ok -or -not $pat) { return @{ text = ''; state = 'no-pattern' } }
     $ranges = $pat.GetSelection()
-    if (-not $ranges -or $ranges.Count -eq 0) { return '' }
+    if (-not $ranges -or $ranges.Count -eq 0) { return @{ text = ''; state = 'no-sel' } }
     $sb = New-Object System.Text.StringBuilder
     foreach ($r in $ranges) { [void]$sb.Append($r.GetText(-1)) }
-    return $sb.ToString()
+    $t = $sb.ToString()
+    if (-not $t) { return @{ text = ''; state = 'no-sel' } }
+    return @{ text = $t; state = 'got' }
   } catch {
-    return ''
+    return @{ text = ''; state = 'err' }
   }
 }
 
-# ---- 路二：模拟一次 Ctrl+C 读剪贴板，读完把原来的还回去 ----
+# ---- 路二：模拟复制键读剪贴板，读完把原来的还回去 ----
+# 先试 Ctrl+C；剪贴板序号没变就再试 Ctrl+Insert（老式复制键，有些应用只认它）。
+# 拿序号变化判断「到底复制到新东西没有」，比比对文本可靠。
+function Try-CopyChord([byte]$vk) {
+  $seqBefore = [PkApi]::GetClipboardSequenceNumber()
+  [PkApi]::keybd_event(0x11, 0, 0, [UIntPtr]::Zero)   # Ctrl down
+  [PkApi]::keybd_event($vk, 0, 0, [UIntPtr]::Zero)
+  [PkApi]::keybd_event($vk, 0, 2, [UIntPtr]::Zero)
+  [PkApi]::keybd_event(0x11, 0, 2, [UIntPtr]::Zero)   # Ctrl up
+  $deadline = (Get-Date).AddMilliseconds(700)
+  while ((Get-Date) -lt $deadline) {
+    Start-Sleep -Milliseconds 40
+    if ([PkApi]::GetClipboardSequenceNumber() -ne $seqBefore) {
+      Start-Sleep -Milliseconds 60      # 再给一点时间让内容落全
+      return $true
+    }
+  }
+  return $false
+}
+
 function Read-SelectionClipboard {
   $wasText = $false
   $before = ''
@@ -113,34 +139,21 @@ function Read-SelectionClipboard {
     if ($wasText) { $before = [System.Windows.Forms.Clipboard]::GetText() }
   } catch {}
 
-  $seqBefore = [PkApi]::GetClipboardSequenceNumber()
+  $chord = ''
+  if (Try-CopyChord 0x43) { $chord = 'Ctrl+C' }
+  elseif (Try-CopyChord 0x2D) { $chord = 'Ctrl+Insert' }
 
-  # Ctrl+C
-  [PkApi]::keybd_event(0x11, 0, 0, [UIntPtr]::Zero)   # Ctrl down
-  [PkApi]::keybd_event(0x43, 0, 0, [UIntPtr]::Zero)   # C down
-  [PkApi]::keybd_event(0x43, 0, 2, [UIntPtr]::Zero)   # C up
-  [PkApi]::keybd_event(0x11, 0, 2, [UIntPtr]::Zero)   # Ctrl up
-
-  # 等剪贴板序号变化（最多 800ms）
   $text = ''
-  $deadline = (Get-Date).AddMilliseconds(800)
-  while ((Get-Date) -lt $deadline) {
-    Start-Sleep -Milliseconds 40
-    if ([PkApi]::GetClipboardSequenceNumber() -ne $seqBefore) {
-      Start-Sleep -Milliseconds 40      # 再给一点时间让内容落全
-      try { if ([System.Windows.Forms.Clipboard]::ContainsText()) { $text = [System.Windows.Forms.Clipboard]::GetText() } } catch {}
-      break
-    }
+  if ($chord) {
+    try { if ([System.Windows.Forms.Clipboard]::ContainsText()) { $text = [System.Windows.Forms.Clipboard]::GetText() } } catch {}
   }
 
   $restored = $false
-  if ($text) {
-    # 还回去：只有原来是文本才还得回去（图片那类救不回来，只能留着新选中的字）
-    if ($wasText) {
-      try { [System.Windows.Forms.Clipboard]::SetText($before); $restored = $true } catch {}
-    }
+  if ($chord -and $wasText) {
+    /* 还回去：只有原来是文本才还得回去（图片、文件那类救不回来） */
+    try { [System.Windows.Forms.Clipboard]::SetText($before); $restored = $true } catch {}
   }
-  return @{ text = $text; restored = $restored; hadText = $wasText }
+  return @{ text = $text; restored = $restored; hadText = $wasText; chord = $chord }
 }
 
 function Read-OnceOnce {
@@ -148,15 +161,19 @@ function Read-OnceOnce {
   $fw = Get-ForegroundInfo
   $text = ''
   $how = ''
+  $uiaState = ''
+  $chord = ''
   $restored = $false
 
   if ($Method -ne 'clipboard') {
-    $text = Read-SelectionUia -useHandle $Handle
-    if ($text) { $how = 'uia' }
+    $u = Read-SelectionUia -useHandle $Handle
+    $uiaState = $u.state
+    if ($u.text) { $text = $u.text; $how = 'uia' }
   }
   if (-not $text -and $Method -ne 'uia') {
     $r = Read-SelectionClipboard
     $text = $r.text
+    $chord = $r.chord
     $restored = $r.restored
     if ($text) { $how = 'clip' }
   }
@@ -164,6 +181,7 @@ function Read-OnceOnce {
   Emit ([ordered]@{
     t = 'sel'; text = $text; how = $how; app = $fw.app; hwnd = $fw.hwnd
     ms = [int]((Get-Date) - $t0).TotalMilliseconds; len = $text.Length; restored = $restored
+    uia = $uiaState; chord = $chord
   })
 }
 

@@ -89,8 +89,15 @@ const store = createStore({
   defaults: DEFAULT_SETTINGS
 });
 
-/* 出错记录：只记步骤与错误，不记内容。控制台也打一份，方便我看。 */
-function log(...a) { if (!IS_SMOKE) console.log('[旁译桌面版]', ...a); }
+/* 出错记录：只记步骤与错误，不记内容。控制台也打一份，方便我看。
+   冒烟模式下 stdout 是拿不到的（GUI 子系统），所以那时额外写进冒烟那份日志。 */
+function log(...a) {
+  const line = a.map(x => (typeof x === 'string' ? x : JSON.stringify(x))).join(' ');
+  try { console.log(line); } catch (e) {}
+  if (IS_SMOKE) {
+    try { fs.appendFileSync(path.join(ROOT, 'test', '_smoke-last.txt'), '     · ' + line + '\n'); } catch (e) {}
+  }
+}
 const noteFail = (step, detail, extra) => {
   store.noteFail(step, detail, extra);
   if (!IS_SMOKE) console.log('[旁译桌面版·错]', step, detail);
@@ -313,6 +320,8 @@ async function translateAndShow(text, opt = {}) {
 /* ------------------------------------------------------------ 截屏取字 */
 async function shotAndOcr() {
   try {
+    /* 已经在框选了就不要再叠一层 */
+    if (capture.open) return null;
     const got = await capture.pick();
     if (!got || got.kind === 'cancel') return null;
     if (got.kind === 'timeout') { toastOrb('框选等太久了，重来一次吧'); return null; }
@@ -494,7 +503,12 @@ function rebindShortcuts() {
     } catch (e) { noteFail('shortcut', String((e && e.message) || e), { name, acc }); }
   };
   bind((s.shortcuts || {}).clip, () => manualFromClipboard(), 'clip');
-  bind((s.shortcuts || {}).shot, () => shotAndOcr(), 'shot');
+  bind((s.shortcuts || {}).shot, () => {
+    /* 出口五：框选遮罩开着的时候，再按一次这个快捷键 = 取消。
+       键盘焦点万一不在遮罩上，她还有这个办法脱身。 */
+    if (capture && capture.open) { capture.cancel(); toastOrb('已取消框选'); return; }
+    shotAndOcr();
+  }, 'shot');
   bind((s.shortcuts || {}).orb, () => {
     if (!orbWin) createOrb();
     else if (orbWin.isVisible()) orbWin.hide();
@@ -520,6 +534,9 @@ app.whenReady().then(async () => {
   });
   capture = createCapture({
     overlayUrl: pageUrl('ui/overlay.html'),
+    /* ⚠️ 这个 preload 必须传。漏了的话遮罩里的 window.st 不存在：
+       照片送不进来（黑屏）、ESC 也报不出来（按了没反应）。 */
+    preload: PRELOAD,
     log: (m) => log(m),
     onBeforePick: () => hidePanel()
   });

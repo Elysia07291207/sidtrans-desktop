@@ -244,6 +244,60 @@ export async function runSmoke(ctx) {
     stub.srv.close();
   }
 
+  /* ---------------- 遮罩（框选取字） ----------------
+     这一块曾经是个硬伤：遮罩盖住全屏、按 ESC 毫无反应，她只能重启。
+     所以现在两条都验：能看见冻住的屏幕（不是黑屏），以及每条退路都能退。 */
+  if (which === 'overlay' || which === 'all') {
+    say('\n[遮罩]');
+
+    /* 每个检查都要自己收尾：抛了也得把遮罩关掉。
+       之前没做，第一个检查一挂就留了一层遮罩盖在屏幕上，还把后面几个检查带偏了。 */
+    const withOverlay = async (fn) => {
+      try { return await fn(); }
+      finally { try { ctx.capture.cancel('自检收尾'); } catch (e) {} await sleep(300); }
+    };
+
+    await check('遮罩能开、桥是通的、冻住的屏幕送进去了（不是一块黑）', () => withOverlay(async () => {
+      const p = ctx.capture.pick();
+      const w = await waitFor(() => (ctx.capture.windows[0] || null), { what: '遮罩窗口' });
+      /* 先看指示灯：桥没通就是根因，不用再猜图的事 */
+      const flag = await waitFor(async () => {
+        const f = await w.webContents.executeJavaScript('window.__ov || null');
+        return f || null;
+      }, { what: '遮罩里的指示灯', timeout: 8000 });
+      if (!flag.stOk) throw new Error('桥没通：' + JSON.stringify(flag));
+      const n = await waitFor(async () => {
+        const f = await w.webContents.executeJavaScript('window.__ov');
+        return (f && f.gotImage) ? f.imgLen : null;
+      }, { what: '截图 dataURL 送进遮罩', timeout: 15000 });
+      return 'dataURL ' + Math.round(n / 1024) + 'KB · 桥通';
+    }));
+
+    await check('按 Esc 能退（走真键盘路径）', () => withOverlay(async () => {
+      const p = ctx.capture.pick();
+      const w = await waitFor(() => (ctx.capture.windows[0] || null), { what: '遮罩窗口' });
+      await sleep(600);
+      w.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' });
+      /* 别在后面再发 keyUp：keyDown 已经把窗口收了，再碰它就是「Object has been destroyed」 */
+      const r = await Promise.race([p, sleep(8000).then(() => null)]);
+      if (!r) throw new Error('Esc 之后 8 秒还没退——遮罩可能又卡住了');
+      if (r.kind !== 'cancel') throw new Error('Esc 没被当成取消：' + JSON.stringify(r));
+      if (ctx.capture.open) throw new Error('遮罩窗口还开着');
+      return 'Esc 退出正常';
+    }));
+
+    await check('不靠键盘：右上角「取消」按钮也能退', () => withOverlay(async () => {
+      const p = ctx.capture.pick();
+      const w = await waitFor(() => (ctx.capture.windows[0] || null), { what: '遮罩窗口' });
+      await sleep(600);
+      await w.webContents.executeJavaScript(`document.getElementById('cancel').click()`);
+      const r = await Promise.race([p, sleep(8000).then(() => null)]);
+      if (!r || r.kind !== 'cancel') throw new Error('取消按钮没生效：' + JSON.stringify(r));
+      if (ctx.capture.open) throw new Error('遮罩窗口还开着');
+      return '按钮退出正常';
+    }));
+  }
+
   /* ---------------- ocr ---------------- */
   if (which === 'ocr' || which === 'all') {
     say('\n[ocr]');

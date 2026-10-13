@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <title>旁译 · 框选</title>
 <style>
-  html, body { margin: 0; height: 100%; overflow: hidden; background: #000; cursor: crosshair; user-select: none; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #1a1410; cursor: crosshair; user-select: none; }
   #shot { position: fixed; inset: 0; width: 100%; height: 100%; object-fit: fill; -webkit-user-drag: none; }
   #veil { position: fixed; inset: 0; background: rgba(20, 14, 10, .38); }
   #box {
@@ -18,6 +18,14 @@
     font: 600 13px/1.5 "Microsoft YaHei", system-ui, sans-serif; white-space: nowrap;
   }
   #hint b { color: #E2B07A; }
+  /* 出口三：看得见的取消按钮。不依赖键盘、不依赖脚本通不通。 */
+  #cancel {
+    position: fixed; right: 20px; top: 20px;
+    padding: 7px 14px; border-radius: 6px; cursor: pointer;
+    border: 1px solid #E2B07A; background: rgba(24, 20, 17, .9); color: #F8F3EB;
+    font: 700 13px/1.4 "Microsoft YaHei", system-ui, sans-serif;
+  }
+  #cancel:hover { background: #E2B07A; color: #24170e; }
   #size {
     position: absolute; right: 0; bottom: -22px; padding: 1px 6px; border-radius: 4px;
     background: rgba(24, 20, 17, .86); color: #F8F3EB;
@@ -29,7 +37,8 @@
   <img id="shot" alt="">
   <div id="veil"></div>
   <div id="box"><span id="size"></span></div>
-  <div id="hint">拖一个框把要认的字圈住 · <b>Esc</b> 取消</div>
+  <div id="hint">拖一个框把要认的字圈住 · <b>Esc</b> 或右上角「取消」退出</div>
+  <button id="cancel" type="button">取消 (Esc)</button>
 <script src="overlay.js"></script>
 </body>
 </html>

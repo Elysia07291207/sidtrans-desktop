@@ -100,7 +100,9 @@ function log(...a) {
   try { console.log(line); } catch (e) {}
   try {
     const f = path.join(app.getPath('userData'), 'run.log');
-    fs.appendFileSync(f, new Date().toISOString().slice(11, 19) + ' ' + line + '\n');
+    /* 用本地时间：她跟我对时间对的是墙上那个钟（ISO 是 UTC，看着会差 8 小时） */
+    const stamp = new Date().toTimeString().slice(0, 8);
+    fs.appendFileSync(f, stamp + ' ' + line + '\n');
     const st = fs.statSync(f);
     if (st.size > 256 * 1024) {
       /* 滚动：只留最后那段，不让她机器上无端长出一个大文件 */

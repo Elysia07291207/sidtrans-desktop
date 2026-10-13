@@ -1,0 +1,29 @@
+# —— 依赖 ——
+node_modules/
+
+# —— OCR 运行时依赖（npm 装，scripts/sync_vendor.mjs 从 node_modules 搬进来）——
+# 十几兆的 wasm 与训练数据，跟浏览器版把 lang/ 排除在外是同一个道理
+vendor/
+
+# —— 打包产物 ——
+dist/
+_build/
+out/
+
+# —— 日志与临时文件 ——
+*.log
+.tmp/
+*.tmp
+
+# —— 自检产生的临时文件 ——
+test/_*.txt
+test/_render.html
+test/_probe.mjs
+test/_dbg.mjs
+
+# —— 私人内容：不进公开仓库 ——
+_私密/
+项目交接*.md
+*.secret
+.env
+.env.*

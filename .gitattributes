@@ -1,0 +1,9 @@
+# 统一换行：仓库里一律 LF，工作区检出也保持 LF
+* text=auto eol=lf
+
+# 二进制：别做任何换行/编码转换
+*.png binary
+*.gz binary
+*.ico binary
+*.xpi binary
+*.wasm binary

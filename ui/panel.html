@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>旁译 · 面板</title>
+<link rel="stylesheet" href="panel.css">
+</head>
+<body>
+<div id="wrap">
+  <div class="st-panel" data-theme="light">
+    <div class="st-head">
+      <span class="st-dir">译</span>
+      <span class="st-modes">
+        <button class="st-mode" data-mode="translate" title="翻译">翻译</button>
+        <button class="st-mode" data-mode="answer" title="当题做，只给答案">做题</button>
+        <button class="st-mode" data-mode="term" title="术语：官方译法 + 说明">术语</button>
+      </span>
+      <span class="st-engine"></span>
+      <button class="st-close" title="关闭 (Esc)">✕</button>
+    </div>
+    <div class="st-body">
+      <div class="st-sec st-shot-sec">
+        <div class="st-label">取到的那块<span class="st-shotinfo"></span></div>
+        <img class="st-shot" alt="">
+      </div>
+      <div class="st-sec st-res-sec">
+        <div class="st-label"><span class="st-restitle">译文</span><span class="st-status"></span></div>
+        <div class="st-dst"></div>
+        <div class="st-pending"></div>
+      </div>
+      <div class="st-sec">
+        <div class="st-label">原文</div>
+        <div class="st-src"></div>
+      </div>
+      <div class="st-sec st-write">
+        <div class="st-label">写</div>
+        <textarea class="st-input" placeholder="在这里写你的译文 / 想法… Ctrl+Enter 按当前模式处理" spellcheck="false"></textarea>
+      </div>
+    </div>
+    <div class="st-foot">
+      <button class="st-btn primary" data-act="copy-dst">复制译文</button>
+      <span class="st-more">
+        <button class="st-btn" data-act="explain">看解析</button>
+        <button class="st-btn" data-act="dst-to-write">译文→写</button>
+        <button class="st-btn" data-act="as-question">当题做</button>
+        <button class="st-btn" data-act="src-to-write">原文→写</button>
+        <button class="st-btn" data-act="copy-mine">复制我写的</button>
+        <button class="st-btn" data-act="retrans">重译</button>
+        <button class="st-btn" data-act="shot">截屏取字</button>
+        <button class="st-btn" data-act="from-clip">翻译剪贴板</button>
+      </span>
+      <span class="st-toast"></span>
+    </div>
+  </div>
+</div>
+<script src="panel.js"></script>
+</body>
+</html>

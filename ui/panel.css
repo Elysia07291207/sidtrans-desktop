@@ -1,0 +1,108 @@
+/* 旁译桌面版 · 面板样式
+ *
+ * 这一份是从浏览器版 content.js 里那段 CSS 搬过来的（.st-* 那一整套），
+ * 只改了三处，其余一个字没动：
+ *   1. `:host{all:initial}` 去掉——这里不是 shadow DOM，没有宿主选择器；
+ *   2. 面板不再自己绝对定位（原来是挂在页面上的浮层，现在是自己的窗口）；
+ *   3. 加了一个 .st-panel.fill，让面板撑满窗口高度（窗口本身就是它的边界）。
+ * 字号层级、配色 token、按钮顺序全部保持原样：
+ * 换主题只换颜色、不动阅读路线，这条在考场里是有意义的。
+ */
+
+* { box-sizing: border-box; }
+html, body {
+  margin: 0; padding: 0; height: 100%;
+  background: transparent;
+  font: 13px/1.6 -apple-system, "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+  overflow: hidden;
+}
+#wrap { height: 100%; padding: 0; }
+
+.st-panel{
+  pointer-events:auto;
+  width:100%; height:100%;
+  display:flex; flex-direction:column;
+  /* —— 浅色（默认）：暖白奶油 —— */
+  --bg:#F8F3EB; --bar:#EEE5D9; --res:#FFF9F2; --inp:#FFF9F1; --shotbg:#E8DED2;
+  --line:#D8C9B9; --line2:#C5B3A1;
+  --tx:#332A25; --tx2:#695B51; --tx3:#8D7E72;
+  --acc:#9B6B4D; --onfg:#FFF8F3; --ans:#A64F62; --term:#8662A1;
+  --ok:#5F8D5A; --warn:#9A7041; --err:#B34646; --pend:#958A81;
+  --shadow:0 6px 14px rgba(74,54,42,.14),0 1px 3px rgba(74,54,42,.10);
+  color:var(--tx); background:var(--bg);
+  border:1px solid var(--line); border-radius:8px;
+  box-shadow:var(--shadow);
+  overflow:hidden;
+}
+.st-panel[data-theme="dark"]{
+  --bg:#181716; --bar:#211F1D; --res:#24211E; --inp:#151310; --shotbg:#100e0c;
+  --line:#3C3834; --line2:#554D46;
+  --tx:#F4EEE6; --tx2:#B7AEA4; --tx3:#817870;
+  --acc:#D6A85A; --onfg:#191714; --ans:#F2C66E; --term:#C8A0E8;
+  --ok:#A8D49C; --warn:#D2AB70; --err:#EE887B; --pend:#77716B;
+  --shadow:0 10px 22px rgba(0,0,0,.32),0 2px 4px rgba(0,0,0,.24);
+}
+.st-head{display:flex;align-items:center;gap:8px;padding:6px 10px;height:36px;background:var(--bar);border-bottom:1px solid var(--line);cursor:move;user-select:none}
+.st-dir{font-size:12px;line-height:17px;font-weight:800;letter-spacing:.12em;color:var(--acc)}
+.st-engine{font-size:10.5px;line-height:15px;font-weight:500;color:var(--tx3);margin-left:auto;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:132px}
+.st-modes{display:flex;border:1px solid var(--line2);border-radius:5px;overflow:hidden;flex:none}
+.st-mode{appearance:none;border:0;border-right:1px solid var(--line2);background:transparent;color:var(--tx3);font:inherit;font-size:12px;line-height:18px;font-weight:500;padding:3px 8px;cursor:pointer}
+.st-mode:last-child{border-right:0}
+.st-mode:hover{background:color-mix(in srgb,var(--tx) 8%,transparent);color:var(--tx)}
+.st-mode.on{background:var(--acc);color:var(--onfg);font-weight:700}
+.st-close{appearance:none;border:0;background:transparent;color:var(--tx3);font-size:13px;line-height:1;padding:3px 5px;cursor:pointer;border-radius:5px;flex:none}
+.st-close:hover{background:color-mix(in srgb,var(--tx) 10%,transparent);color:var(--tx)}
+.st-body{overflow:auto;flex:1 1 auto}
+.st-sec{padding:8px 12px;border-bottom:1px solid var(--line)}
+.st-sec:last-child{border-bottom:0}
+.st-label{font-size:11px;line-height:16px;letter-spacing:.08em;color:var(--tx3);margin-bottom:5px;display:flex;align-items:center;gap:6px;font-weight:800;text-transform:uppercase}
+.st-status{color:var(--tx3);font-size:10.5px;letter-spacing:0;text-transform:none;font-weight:500;margin-left:auto}
+.st-res-sec{background:var(--res);border-left:2px solid var(--line2)}
+.st-res-sec:has(.st-dst.is-answer){border-left-color:var(--ans)}
+.st-res-sec:has(.st-dst.is-term){border-left-color:var(--term)}
+.st-res-sec:has(.st-dst.is-error){border-left-color:var(--err)}
+.st-src{color:var(--tx2);font-size:12.5px;line-height:20px;max-height:128px;overflow:auto;white-space:pre-wrap;word-break:break-word}
+.st-dst{color:var(--tx);font-size:16px;line-height:26px;font-weight:600;white-space:pre-wrap;word-break:break-word;min-height:26px}
+.st-dst.is-pending{color:var(--pend);font-weight:400}
+.st-dst.is-error{color:var(--err);font-size:13px;line-height:20px;font-weight:500}
+.st-dst.is-hint{font-size:13px;line-height:20px;font-weight:400;color:var(--tx2);white-space:normal}
+.st-dst.is-hint b{color:var(--acc);font-weight:700}
+.st-hintrow{margin-top:10px}
+.st-hintbtn{appearance:none;border:1px solid var(--acc);background:var(--acc);color:var(--onfg);font:inherit;font-size:12px;line-height:19px;font-weight:800;padding:5px 11px;border-radius:5px;cursor:pointer;min-height:30px}
+.st-dst.is-answer{font-size:24px;line-height:36px;font-weight:800;letter-spacing:.16em;
+  color:var(--ans);font-family:ui-monospace,"Cascadia Mono",Consolas,monospace;min-height:36px}
+.st-dst.is-term{font-size:inherit;letter-spacing:0;font-weight:400;color:var(--tx)}
+.st-tterm{display:flex;gap:8px;align-items:baseline}
+.st-tterm .st-tk{flex:none;max-width:46%;font-size:11px;line-height:16px;color:var(--tx3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.st-tterm + .st-tterm{margin-top:8px;padding-top:8px;border-top:1px solid var(--line)}
+.st-tterm .st-tv{font-size:21px;line-height:30px;font-weight:800;color:var(--term);word-break:break-word;
+  font-family:ui-monospace,"Cascadia Mono",Consolas,monospace;letter-spacing:.01em}
+.st-trow{display:flex;gap:8px;margin-top:6px;font-size:12.5px;line-height:20px;color:var(--tx2)}
+.st-trow .st-tk{flex:none;font-size:11px;color:var(--tx3);padding-top:2px}
+.st-trow .st-tx{min-width:0;word-break:break-word}
+.st-pending{color:var(--tx3);font-size:12px;line-height:18px;font-weight:600;margin-top:6px;letter-spacing:.01em}
+.st-pending:empty{display:none}
+.st-shot-sec{display:none}
+.st-shot-sec.on{display:block}
+.st-shot{display:block;width:100%;height:104px;object-fit:contain;image-rendering:pixelated;
+  border:1px solid var(--line2);border-radius:6px;background:var(--shotbg)}
+.st-shotinfo{font-size:11px;line-height:16px;font-weight:600;color:var(--tx3);letter-spacing:0;text-transform:none;
+  margin-left:auto;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.st-shotinfo.is-warn{color:var(--warn)}
+.st-input{width:100%;min-height:42px;max-height:200px;resize:vertical;background:var(--inp);border:1px solid var(--line);border-radius:8px;color:var(--tx);padding:8px 10px;font:inherit;font-size:13px;outline:none;line-height:1.6;transition:min-height .12s ease}
+.st-write:focus-within .st-input,
+.st-write:has(.st-input:not(:placeholder-shown)) .st-input{min-height:66px}
+.st-input:focus{border-color:var(--acc)}
+.st-foot{display:flex;flex-wrap:wrap;align-items:center;gap:4px;padding:8px 10px;min-height:42px;background:var(--bar);border-top:1px solid var(--line)}
+.st-more{display:flex;flex-wrap:wrap;gap:4px;min-width:0}
+.st-btn{appearance:none;border:1px solid var(--line2);background:transparent;color:var(--tx2);font:inherit;font-size:11.5px;line-height:18px;font-weight:600;padding:4px 9px;border-radius:5px;cursor:pointer;white-space:nowrap}
+.st-btn:hover{background:color-mix(in srgb,var(--tx) 9%,transparent);color:var(--tx)}
+.st-btn.primary{background:var(--acc);border-color:var(--acc);color:var(--onfg);font-weight:700;min-width:84px}
+.st-btn.primary:hover{background:var(--acc);color:var(--onfg);filter:brightness(1.08)}
+.st-panel .st-btn[data-act="explain"]{display:none}
+.st-panel[data-mode="answer"] .st-btn[data-act="explain"]{display:inline-block}
+.st-explain{display:block;margin-top:10px;padding-top:8px;border-top:1px solid var(--line);
+  font:400 13px/20px -apple-system,"Segoe UI","Microsoft YaHei",system-ui,sans-serif;
+  letter-spacing:normal;color:var(--tx2);white-space:pre-wrap}
+.st-toast{font-size:11.5px;line-height:17px;font-weight:700;color:var(--ok);margin-left:auto;align-self:center;max-width:132px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.st-toast.is-err{color:var(--err)}

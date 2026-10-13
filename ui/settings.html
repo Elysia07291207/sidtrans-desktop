@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>旁译桌面版 · 设置</title>
+<style>
+  :root{
+    --bg:#F8F3EB; --card:#FFF9F2; --bar:#EEE5D9; --line:#D8C9B9; --line2:#C5B3A1;
+    --tx:#332A25; --tx2:#695B51; --tx3:#8D7E72; --acc:#9B6B4D; --onfg:#FFF8F3;
+    --ok:#5F8D5A; --err:#B34646; --warn:#9A7041;
+  }
+  body[data-theme="dark"]{
+    --bg:#181716; --card:#24211E; --bar:#211F1D; --line:#3C3834; --line2:#554D46;
+    --tx:#F4EEE6; --tx2:#B7AEA4; --tx3:#817870; --acc:#D6A85A; --onfg:#191714;
+    --ok:#A8D49C; --err:#EE887B; --warn:#D2AB70;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--tx);
+    font:13px/1.7 -apple-system,"Segoe UI","Microsoft YaHei",system-ui,sans-serif}
+  .wrap{max-width:680px;margin:0 auto;padding:20px 22px 40px}
+  h1{font-size:16px;margin:0 0 4px;letter-spacing:.02em}
+  .sub{color:var(--tx3);font-size:12px;margin-bottom:18px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:14px 16px;margin-bottom:14px}
+  .card h2{font-size:13px;margin:0 0 10px;letter-spacing:.06em;color:var(--acc);font-weight:800}
+  .row{display:flex;align-items:center;gap:10px;margin:8px 0}
+  .row label{min-width:118px;color:var(--tx2);font-size:12.5px}
+  input[type=text],input[type=password],input[type=number],textarea,select{
+    flex:1;background:var(--bg);border:1px solid var(--line);border-radius:6px;color:var(--tx);
+    padding:6px 9px;font:inherit;font-size:12.5px;outline:none;min-width:0}
+  input:focus,textarea:focus,select:focus{border-color:var(--acc)}
+  textarea{min-height:110px;resize:vertical;line-height:1.65}
+  .seg{display:flex;border:1px solid var(--line2);border-radius:6px;overflow:hidden;flex:none}
+  .seg button{appearance:none;border:0;border-right:1px solid var(--line2);background:transparent;
+    color:var(--tx3);font:inherit;font-size:12px;padding:4px 10px;cursor:pointer}
+  .seg button:last-child{border-right:0}
+  .seg button.on{background:var(--acc);color:var(--onfg);font-weight:700}
+  .hint{color:var(--tx3);font-size:11.5px;margin:-2px 0 6px 128px;line-height:1.6}
+  .hint.tight{margin-left:0}
+  .actions{display:flex;gap:8px;align-items:center;margin-top:6px}
+  .btn{appearance:none;border:1px solid var(--line2);background:transparent;color:var(--tx2);
+    font:inherit;font-size:12px;font-weight:600;padding:5px 12px;border-radius:6px;cursor:pointer}
+  .btn:hover{background:color-mix(in srgb,var(--tx) 9%,transparent);color:var(--tx)}
+  .btn.primary{background:var(--acc);border-color:var(--acc);color:var(--onfg);font-weight:700}
+  .btn.primary:hover{filter:brightness(1.08)}
+  .presets{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
+  .presets button.on{border-color:var(--acc);color:var(--acc);font-weight:700}
+  .msg{font-size:12px;color:var(--ok);font-weight:700;min-height:18px}
+  .msg.err{color:var(--err)}
+  .chk{display:flex;align-items:center;gap:8px;margin:7px 0;font-size:12.5px;color:var(--tx2)}
+  .chk input{width:15px;height:15px;accent-color:var(--acc)}
+  pre{background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:10px;
+    font:11.5px/1.6 ui-monospace,Consolas,monospace;color:var(--tx2);max-height:240px;overflow:auto;
+    white-space:pre-wrap;word-break:break-all;margin:8px 0 0}
+  .hide{display:none}
+  code{background:var(--bar);border-radius:4px;padding:1px 5px;font-size:11.5px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>旁译桌面版 · 设置</h1>
+  <div class="sub">一个悬浮球：任意应用里 Ctrl+C，它自己发现剪贴板变了就译；拖个框就能本地取字。
+    灵感与交互设计来自 FlashTrans（chai1220，MIT）。</div>
+
+  <div class="card">
+    <h2>翻译引擎</h2>
+    <div class="row">
+      <label>用哪个引擎</label>
+      <span class="seg" id="engine">
+        <button data-v="mymemory">免费在线</button>
+        <button data-v="openai">API</button>
+        <button data-v="local">本地服务</button>
+      </span>
+    </div>
+    <div class="hint" id="engineHint"></div>
+
+    <div id="box-openai">
+      <div class="row"><label>接口地址</label><input type="text" id="oa-base" placeholder="https://api.deepseek.com/v1"></div>
+      <div class="row"><label>API Key</label><input type="password" id="oa-key" placeholder="sk-…"></div>
+      <div class="row"><label>模型</label><input type="text" id="oa-model" placeholder="deepseek-chat"></div>
+      <div class="row" style="align-items:flex-start"><label style="padding-top:5px">领域提示词</label>
+        <textarea id="oa-prompt" placeholder="留空就用程序自带的那套"></textarea></div>
+      <div class="presets" id="promptPreset"></div>
+      <div class="hint tight" id="presetHint"></div>
+    </div>
+
+    <div id="box-local" class="hide">
+      <div class="row"><label>本地服务地址</label><input type="text" id="lc-url" placeholder="http://127.0.0.1:8787/translate"></div>
+      <div class="hint tight">POST <code>{text, from, to}</code> → <code>{text}</code>。全程离线，文本不出本机。</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>剪贴板（主路径）</h2>
+    <div class="chk"><input type="checkbox" id="clipAuto"><span>复制了就跟上翻——Ctrl+C 之后球自己动</span></div>
+    <div class="chk"><input type="checkbox" id="clipGuard"><span>看着像密钥 / 令牌的一串就不翻（默认开）</span></div>
+    <div class="row"><label>自动翻的长度</label>
+      <input type="number" id="clipMin" min="1" max="200" style="max-width:90px">
+      <span style="color:var(--tx3)">～</span>
+      <input type="number" id="clipMax" min="50" max="20000" style="max-width:110px">
+      <span style="color:var(--tx3);font-size:12px">字符（超出就不自动翻，点球手动翻）</span>
+    </div>
+    <div class="hint tight">球只<b>读</b>剪贴板，从不写。复制译文那一瞬间写的那一次，程序自己记着，不会被当成新内容再翻一遍。</div>
+  </div>
+
+  <div class="card">
+    <h2>默认动作</h2>
+    <div class="row"><label>划词 / 复制后</label>
+      <span class="seg" id="actionMode">
+        <button data-v="translate">翻译</button>
+        <button data-v="answer">做题</button>
+        <button data-v="term">术语</button>
+      </span>
+    </div>
+    <div class="row"><label>翻译方向</label>
+      <span class="seg" id="targetMode">
+        <button data-v="auto">中英互转</button>
+        <button data-v="zh">译成中文</button>
+        <button data-v="en">译成英文</button>
+      </span>
+    </div>
+    <div class="row"><label>译文风格</label>
+      <span class="seg" id="transStyle">
+        <button data-v="daily">日常</button>
+        <button data-v="lit">笔译赛</button>
+      </span>
+    </div>
+    <div class="row"><label>做题时</label>
+      <span class="seg" id="answerExplain">
+        <button data-v="off">只给答案</button>
+        <button data-v="on">答案 + 解析</button>
+      </span>
+    </div>
+    <div class="row"><label>面板主题</label>
+      <span class="seg" id="panelTheme">
+        <button data-v="light">暖白</button>
+        <button data-v="dark">暖黑</button>
+      </span>
+    </div>
+    <div class="row"><label>球的大小</label>
+      <input type="number" id="orbSize" min="32" max="96" style="max-width:90px">
+      <span style="color:var(--tx3);font-size:12px">像素</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>快捷键</h2>
+    <div class="row"><label>翻译剪贴板</label><input type="text" id="sc-clip"></div>
+    <div class="row"><label>截屏取字</label><input type="text" id="sc-shot"></div>
+    <div class="row"><label>显示 / 隐藏球</label><input type="text" id="sc-orb"></div>
+    <div class="hint tight">写 Electron 的加速键写法，例如 <code>Control+Alt+T</code>。改完点保存即生效。</div>
+  </div>
+
+  <div class="actions">
+    <button class="btn primary" id="save">保存</button>
+    <button class="btn" id="test">试翻一句</button>
+    <button class="btn" id="testJunk">拿乱码试一下</button>
+    <span class="msg" id="msg"></span>
+  </div>
+  <pre id="probeOut" class="hide"></pre>
+
+  <div class="card">
+    <h2>出问题了？</h2>
+    <div class="hint tight">这里记的是「哪一步、什么错」，<b>不记内容</b>——不记你翻的是什么。</div>
+    <div class="actions">
+      <button class="btn" id="logShow">看一眼</button>
+      <button class="btn" id="logClear">清空</button>
+    </div>
+    <pre id="logOut" class="hide"></pre>
+  </div>
+</div>
+<script type="module" src="settings.js"></script>
+</body>
+</html>

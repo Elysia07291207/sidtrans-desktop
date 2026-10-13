@@ -7,3 +7,8 @@
 *.ico binary
 *.xpi binary
 *.wasm binary
+
+# Windows 批处理：必须 CRLF（LF 换行会让 cmd 字节错位，报奇怪的错）；
+# 内容请自行存成 GBK，git 只负责保住换行符
+*.cmd text eol=crlf
+*.bat text eol=crlf

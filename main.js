@@ -148,6 +148,11 @@ function createOrb() {
     x, y, width: box, height: box,
     frame: false, transparent: true, resizable: false, movable: false,
     skipTaskbar: true, alwaysOnTop: true, hasShadow: false, show: false,
+    /* focusable:false —— 关键：球不能抢焦点。
+       否则她点一下球，前台就从她正在看的应用变成我们——
+       取词那一刻问「前台控件里选了什么」就问错了对象。
+       鼠标事件照常收得到，只是窗口不激活。 */
+    focusable: false,
     maximizable: false, minimizable: false, fullscreenable: false,
     webPreferences: {
       preload: PRELOAD, contextIsolation: true, nodeIntegration: false, sandbox: false,
@@ -403,25 +408,57 @@ function onPickEvent(ev) {
 }
 
 /* 手动试一次：拿当前前台应用读一次选中，把结果说出来。
-   为什么要有这个：取词这条路严重依赖「前台焦点」，而那东西从外部很难模拟——
-   她自己点一下托盘就能在五秒内知道「这个应用究竟取不取得到」。 */
-function tryOnePick() {
+
+   ⚠️ 这个入口踩过一个坑：点托盘菜单那一瞬间，前台窗口会变成旁译自己，
+   于是它去问「旁译的窗口里选了什么」——当然什么都没有。她的日志里就是三条
+   「前台=electron」。所以现在改成：**先给她 3 秒去切回目标应用选好字**，
+   再读；而且结果写进面板（看得见、留得住），不再只靠一个 2.2 秒的小气泡。 */
+async function tryOnePick() {
   try {
+    hidePanel();                                  /* 面板可能挡着她要看的东西 */
+    toastOrb('3 秒后取词：切到目标应用，选中一段字');
+    await new Promise(r => setTimeout(r, 3000));
+    toastOrb('读一次…');
+
     const out = execFileSync('powershell.exe', ['-NoProfile', '-Sta', '-ExecutionPolicy', 'Bypass',
       '-File', path.join(ROOT, 'tools', 'pick-helper.ps1'), '-Once', '-Method', 'auto', '-Handle', '0'],
       { encoding: 'utf8', timeout: 25000, windowsHide: true, maxBuffer: 2 * 1024 * 1024 });
     const lines = String(out || '').split(/\r?\n/).map(x => x.trim()).filter(Boolean);
     let r = null;
     try { r = JSON.parse(lines[lines.length - 1]); } catch (e) {}
-    if (!r || r.t !== 'sel') { toastOrb('取词没回话（看看日志）'); log('[取词] 试一次：没回话 ' + (lines.slice(-1)[0] || '')); return; }
+
+    if (!r || r.t !== 'sel') {
+      log('[取词] 试一次：没回话 ' + (lines.slice(-1)[0] || ''));
+      toastOrb('取词没回话');
+      showPanel({ text: '', result: { ok: false, mode: 'translate', error: '取词测试：帮手没回话。日志里有记录。' } });
+      return;
+    }
+
     const text = String(r.text || '').trim();
-    log('[取词] 试一次：' + (text ? ('取到 ' + text.length + ' 字，走 ' + r.how) : '没取到') + ' · 前台=' + (r.app || '?'));
-    if (!text) { toastOrb('没取到字（前台：' + (r.app || '?') + '）——这个应用可能不走这两条路'); return; }
+    log('[取词] 试一次：' + (text ? ('取到 ' + text.length + ' 字，走 ' + r.how) : '没取到')
+      + ' · 前台=' + (r.app || '?') + (r.restored ? ' · 剪贴板已还原' : ''));
+
+    if (!text) {
+      toastOrb('没取到字（前台：' + (r.app || '?') + '）');
+      /* 写进面板：说清是哪个应用不配合，而不是只闪一下让她错过 */
+      showPanel({
+        text: '',
+        result: {
+          ok: false, mode: 'translate',
+          error: '取词测试：没读到选中。当时的前台应用是「' + (r.app || '未知') + '」。\n'
+            + '如果那不是你刚才选字的应用，就说明切过去的时间不够（再试一次，把字先选好）。\n'
+            + '如果就是它，那这个应用不走这两条取词路。'
+        }
+      });
+      return;
+    }
+
     toastOrb('取到了 ' + text.length + ' 字（' + (r.how === 'uia' ? '直接读选中' : '走剪贴板') + '）');
     translateAndShow(text, { source: '取词试一次' });
   } catch (e) {
     toastOrb('取词试一次失败：' + String((e && e.message) || e).slice(0, 40));
     log('[取词] 试一次出错：' + ((e && e.message) || e));
+    showPanel({ text: '', result: { ok: false, mode: 'translate', error: '取词测试失败：' + String((e && e.message) || e) } });
   }
 }
 

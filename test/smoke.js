@@ -242,12 +242,18 @@ export async function runSmoke(ctx) {
       } finally { try { w.destroy(); } catch (e) {} }
     });
 
-    await check('托盘那个「试一次取词」不会抛错（曾经因为一行引用了不存在的变量而挂掉）', async () => {
-      /* 不指望它取到字（自检时前台不一定有选中），只要它不抱错就行。
-         这类「引用了不存在的变量」的错误 node --check 是看不出来的，
-         只有真的调一下才会现形——所以用这条把它盯住。 */
+    await check('托盘「试一次取词」：不抛错，而且结果会写进面板（不再只靠 2 秒的小气泡）', async () => {
+      /* 这一项盯两件事：
+         ① 不再出现「引用了不存在的变量」那类只有真调才会爆的错（node --check 查不出来）；
+         ② 反馈是**留得住的**——以前只闪一个气泡，她没看见就以为「没反应」。 */
       await ctx.tryOnePick();
-      return '没抛错';
+      const w = await waitFor(() => ctx.panelWin, { what: '面板' });
+      await waitFor(() => w.isVisible(), { what: '面板被叫出来' });
+      const txt = await waitFor(async () => {
+        const t = await w.webContents.executeJavaScript(`document.querySelector('.st-dst').textContent`);
+        return (t && t.trim().length) ? t.replace(/\s+/g, ' ').trim() : null;
+      }, { what: '面板里有内容', timeout: 15000 });
+      return '面板：' + txt.slice(0, 44);
     });
 
     stub.srv.close();

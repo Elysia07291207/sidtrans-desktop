@@ -81,6 +81,13 @@ export async function runSmoke(ctx) {
 
   say('\n== 旁译桌面版 · Electron 冒烟（' + which + '）==');
 
+  /* ⚠️ 冒烟会动两个「属于她」的东西：设置（要指到桩服务）与剪贴板（要真的喂给它读）。
+     两头都先存下来，结束时原样还回去——自检不该在地的机器上留下痕迹。 */
+  const settingsBackup = JSON.parse(JSON.stringify(ctx.store.getSettings()));
+  let clipBackup = '';
+  try { clipBackup = clipboard.readText() || ''; } catch (e) {}
+
+  try {
   /* ---------------- ui ---------------- */
   if (which === 'ui' || which === 'all') {
     const stub = await startStub();
@@ -255,6 +262,16 @@ export async function runSmoke(ctx) {
       if (!hitHello || !hitYear) throw new Error('认出来的不对：' + JSON.stringify(text.slice(0, 80)) + ' conf=' + r.conf);
       return 'conf=' + Math.round(r.conf) + ' 「' + text.replace(/\s+/g, ' ').slice(0, 40) + '」';
     });
+  }
+
+  } catch (e) {
+    bad('冒烟主体崩了', String((e && e.message) || e));
+    say('  ✗ 冒烟主体崩了 → ' + ((e && e.message) || e));
+  } finally {
+    /* 把她机器上的东西还回去 */
+    try { ctx.store.replaceSettings(settingsBackup); } catch (e) {}
+    try { clipboard.writeText(clipBackup); } catch (e) {}
+    say('  （设置与剪贴板已还原）');
   }
 
   /* ---------------- 收尾 ---------------- */

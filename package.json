@@ -11,7 +11,7 @@
     "start": "electron .",
     "vendor": "node scripts/sync_vendor.mjs",
     "selftest": "node test/selftest.mjs",
-    "smoke": "electron test/electron_smoke.js"
+    "smoke": "electron . --smoke=all"
   },
   "devDependencies": {
     "@tesseract.js-data/chi_sim": "^1.0.0",

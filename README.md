@@ -3,6 +3,8 @@
 一个**脱离浏览器的悬浮球**：在 Windows 上任何一个应用里复制一段文字，球自己发现剪贴板变了就翻；
 想要哪块字，拖一个框，本地 OCR 取字再翻。
 
+![悬浮球与面板](release/shots/preview.png)
+
 > **灵感与交互设计来自 [FlashTrans](https://github.com/chai1220/FlashTrans)（chai1220，MIT 许可）。**
 > FlashTrans 用 Tauri + Rust 写了一个桌面划词翻译工具，它的「浮层落在选区旁边、不打断手上的事」
 > 是整个旁译系列的起点。本版是在它基础上做的桌面实现（Electron），沿用它的交互想法，

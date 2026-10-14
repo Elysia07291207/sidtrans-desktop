@@ -9,6 +9,10 @@ vendor/
 dist/
 _build/
 out/
+release/dist/
+release/shots/_frames/
+release/shots/_np.png
+release/shots/_tgt_*.png
 
 # —— 日志与临时文件 ——
 *.log

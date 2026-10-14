@@ -347,7 +347,7 @@ export async function runSmoke(ctx) {
         })()`);
         await new Promise(r => setTimeout(r, 500));
 
-        const helper = path.join(ctx.ROOT, 'tools', 'pick-helper.ps1');
+        const helper = ctx.PICK_SCRIPT;
         const read = (args) => {
           const out = spawnSync('powershell.exe', ['-NoProfile', '-Sta', '-ExecutionPolicy', 'Bypass', '-File', helper, '-Once', ...args],
             { encoding: 'utf8', timeout: 25000, windowsHide: true, maxBuffer: 2 * 1024 * 1024 });

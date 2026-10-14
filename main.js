@@ -32,6 +32,12 @@ const APP_ORIGIN = SCHEME + '://app';
 const pageUrl = (p) => APP_ORIGIN + '/' + p;
 const PRELOAD = path.join(ROOT, 'ui', 'preload.cjs');
 const IS_SMOKE = process.argv.some(a => a.startsWith('--smoke'));
+/* ⚠️ 打包之后，能跑的代码在 asar 里（静态资源通过自定义协议用 fs 读，没问题），
+   但 PowerShell 脚本得是**真实路径**——asar 里的东西 PowerShell 读不了。
+   所以 tools/ 额外放一份在 resources/ 下（electron-builder 的 extraResources）。 */
+const PICK_SCRIPT = app.isPackaged
+  ? path.join(process.resourcesPath, 'tools', 'pick-helper.ps1')
+  : path.join(ROOT, 'tools', 'pick-helper.ps1');
 
 /* 数据目录固定成一个 ASCII 名字，别跟着 productName 走。
    两个理由：① 中文路径在不同工具链里反复出问题（今天 Tesseract 就栽在这上面），
@@ -438,7 +444,7 @@ async function tryOnePick() {
     toastOrb('读一次…');
 
     const out = execFileSync('powershell.exe', ['-NoProfile', '-Sta', '-ExecutionPolicy', 'Bypass',
-      '-File', path.join(ROOT, 'tools', 'pick-helper.ps1'), '-Once', '-Method', 'auto', '-Handle', '0'],
+      '-File', PICK_SCRIPT, '-Once', '-Method', 'auto', '-Handle', '0'],
       { encoding: 'utf8', timeout: 25000, windowsHide: true, maxBuffer: 2 * 1024 * 1024 });
     const lines = String(out || '').split(/\r?\n/).map(x => x.trim()).filter(Boolean);
     let r = null;
@@ -489,7 +495,7 @@ function applyPickSetting() {
   if (p.enabled) {
     if (!pickHelper) {
       pickHelper = createPickHelper({
-        script: path.join(ROOT, 'tools', 'pick-helper.ps1'),
+        script: PICK_SCRIPT,
         log: (m) => log(m),
         onEvent: onPickEvent
       });
@@ -744,6 +750,8 @@ app.whenReady().then(async () => {
       get orbWin() { return orbWin; },
       get panelWin() { return panelWin; },
       showPanel, hidePanel, translateAndShow, manualFromClipboard, shotAndOcr, tryOnePick, applyPickSetting,
+      /* 自检要用它：开发时是项目里的那份，打包后在 resources 下 */
+      PICK_SCRIPT,
       copyText: copyToClipboard,
       publicSettings, pageUrl, ROOT
     });

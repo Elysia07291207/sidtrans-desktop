@@ -1,5 +1,7 @@
 # 旁译桌面版 · SideTrans Desktop
 
+> English: [README.en.md](README.en.md)
+
 一个**脱离浏览器的悬浮球**：在 Windows 上任何一个应用里复制一段文字，球自己发现剪贴板变了就翻；
 想要哪块字，拖一个框，本地 OCR 取字再翻。
 

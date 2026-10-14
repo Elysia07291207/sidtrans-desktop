@@ -11,12 +11,38 @@
     "start": "electron .",
     "vendor": "node scripts/sync_vendor.mjs",
     "selftest": "node test/selftest.mjs",
-    "smoke": "electron . --smoke=all"
+    "smoke": "electron . --smoke=all",
+    "pack": "electron-builder --win portable"
+  },
+  "build": {
+    "appId": "local.sidtrans.desktop",
+    "productName": "旁译桌面版",
+    "directories": { "output": "release/dist" },
+    "files": [
+      "main.js",
+      "lib/**",
+      "ui/**",
+      "assets/**",
+      "vendor/**",
+      "tools/**",
+      "test/smoke.js",
+      "test/fixtures/**",
+      "package.json"
+    ],
+    "extraResources": [
+      { "from": "tools", "to": "tools" }
+    ],
+    "win": {
+      "target": [{ "target": "portable", "arch": ["x64"] }],
+      "icon": "assets/icon-256.png",
+      "artifactName": "SideTrans-Desktop-${version}.exe"
+    }
   },
   "devDependencies": {
     "@tesseract.js-data/chi_sim": "^1.0.0",
     "@tesseract.js-data/eng": "^1.0.0",
     "electron": "^44.7.0",
+    "electron-builder": "^26.15.3",
     "tesseract.js": "^7.0.0",
     "tesseract.js-core": "^6.1.2"
   }

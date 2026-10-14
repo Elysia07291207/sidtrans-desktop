@@ -159,6 +159,13 @@ $('save').addEventListener('click', async () => {
   flash('已保存');
 });
 
+/* 自测：不是日常功能。它只回答一个问题——这个应用到底能不能取词。 */
+$('testPick').addEventListener('click', async () => {
+  await window.st.setSettings(collect());   /* 先把当前选择存下来，测的就是它 */
+  window.st.testPick();
+  flash('3 秒内切到目标应用、选中一段字');
+});
+
 async function probe(text, label) {
   const out = $('probeOut');
   out.classList.remove('hide');
@@ -174,8 +181,7 @@ async function probe(text, label) {
 $('test').addEventListener('click', () => probe('The quick brown fox jumps over the lazy dog.', '翻译中…'));
 $('testJunk').addEventListener('click', () => probe('WEHESIeIeEald#E ow=-z=S5F', '拿一串验证码去试…'));
 
-$('logShow').addEventListener('click', async () => {
-  const out = $('logOut');
+$('logShow').addEventListener('click', async () => {  const out = $('logOut');
   out.classList.remove('hide');
   const log = await window.st.getLog();
   out.textContent = log && log.length ? JSON.stringify(log, null, 2) : '（还没有记录）';

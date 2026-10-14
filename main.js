@@ -541,9 +541,6 @@ function trayMenu() {
         toastOrb(mi.checked ? '划词即译已开' : '划词即译已关');
       }
     },
-    {
-      label: '试一次取词（看现在前台能不能取到）', click: () => tryOnePick()
-    },
     { type: 'separator' },
     { label: '设置…', click: () => openSettings() },
     { type: 'separator' },
@@ -629,6 +626,7 @@ function registerIpc() {
   ipcMain.on('st:panel-close', () => hidePanel());
   ipcMain.on('st:open-settings', () => openSettings());
   ipcMain.on('st:shot', () => shotAndOcr());
+  ipcMain.on('st:test-pick', () => { tryOnePick(); });
   ipcMain.on('st:translate-clip', () => manualFromClipboard());
   ipcMain.handle('st:clip-state', () => {
     const s = store.getSettings();
@@ -725,6 +723,15 @@ app.whenReady().then(async () => {
   createTray();
   rebindShortcuts();
   applyPickSetting();
+  /* 启动时先把剪贴板「当前的内容」记为已看过。
+     不然第一次轮询会把她启动前就放在剪贴板里的东西当成「新内容」翻一遍，
+     面板会凭空弹出来——而那不是她此刻的动作。只该翻「启动之后她新复制的」。 */
+  try {
+    const seed = (await clipboard.readText()) || '';
+    watcher.lastSeen = seed;
+    lastClipText = String(seed).trim();
+    log('[剪贴板] 起手记住现有内容 ' + String(seed).length + ' 字（不会自动翻它）');
+  } catch (e) {}
   watcher.start();
 
   /* OCR 引擎在后台悄悄预热：第一次真要取字时就不用等模型加载 */
@@ -736,7 +743,7 @@ app.whenReady().then(async () => {
       app, store, engine, ocrHost, capture, watcher,
       get orbWin() { return orbWin; },
       get panelWin() { return panelWin; },
-      showPanel, hidePanel, translateAndShow, manualFromClipboard, shotAndOcr, tryOnePick,
+      showPanel, hidePanel, translateAndShow, manualFromClipboard, shotAndOcr, tryOnePick, applyPickSetting,
       copyText: copyToClipboard,
       publicSettings, pageUrl, ROOT
     });

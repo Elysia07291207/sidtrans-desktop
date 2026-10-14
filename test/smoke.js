@@ -98,8 +98,13 @@ export async function runSmoke(ctx) {
       local: { url: 'http://127.0.0.1:' + stub.port + '/translate' },
       actionMode: 'translate',
       clip: { auto: true, paused: false, guard: true, minLen: 2, maxLen: 500 },
-      shortcuts: { clip: '', shot: '', orb: '' }   /* 冒烟时不抢她的快捷键 */
+      shortcuts: { clip: '', shot: '', orb: '' },  /* 冒烟时不抢她的快捷键 */
+      /* ⚠️ 把划词取词关掉：她可能在自己的设置里开着它，而取词帮手会真的盯鼠标、
+         真的去读选中——刚刚就误判了一次拖选，把她剪贴板里的字翻出来，
+         盖掉了自检要验的面板内容。自检得先把活动的部件关掉。 */
+      pick: { enabled: false }
     });
+    ctx.applyPickSetting();
     ctx.store.cache.clear();
 
     say('\n[ui]');

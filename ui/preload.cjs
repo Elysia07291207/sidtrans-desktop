@@ -36,6 +36,8 @@ contextBridge.exposeInMainWorld('st', {
   panelDrag: (dx, dy) => ipcRenderer.send('st:panel-drag', { dx, dy }),
   closePanel: () => ipcRenderer.send('st:panel-close'),
   openSettings: () => ipcRenderer.send('st:open-settings'),
+  /** 自测：现在这个前台应用能不能取词（不是日常功能，只是测温计） */
+  testPick: () => ipcRenderer.send('st:test-pick'),
   shot: () => ipcRenderer.send('st:shot'),
   translateClip: () => ipcRenderer.send('st:translate-clip'),
 

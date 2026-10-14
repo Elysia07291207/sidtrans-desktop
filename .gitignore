@@ -31,3 +31,6 @@ _私密/
 *.secret
 .env
 .env.*
+
+# 录帧脚本的中间产物（帧序列 / 备份）
+release/_gifwork/

@@ -89,6 +89,15 @@
 
 ## 怎么跑起来
 
+**① 直接用现成的（推荐）**：去 [Releases](https://github.com/Elysia07291207/sidtrans-desktop/releases) 下
+`SideTrans-Desktop-0.1.0.exe`（102 MB，portable 单文件，双击即用，不用安装、不需要管理员权限）。
+
+> ⚠️ **请把它放在纯英文路径下**（例如 `C:\Apps\SideTrans\`）。Electron 自己的可执行文件如果坐在带中文的
+> 路径里，会在加载自身资源那一步直接崩（退出码 `-2147483645`），JS 一行都跑不到——
+> 这是本项目里最费时间的一个坑，实测过：同一个二进制换到英文路径立刻正常。
+
+**② 从源码跑**（要改代码时）：
+
 ```powershell
 # 在本项目目录下（就是含 package.json 的那一层）
 

@@ -38,6 +38,7 @@ function paintPreset() {
 function paintSegs() {
   [['targetMode', S.targetMode], ['engine', S.engine], ['actionMode', S.actionMode],
    ['transStyle', S.transStyle], ['panelTheme', S.panelTheme], ['answerExplain', S.answerExplain],
+   ['sound', S.sound === false ? 'off' : 'on'],
    ['pickMethod', (S.pick && S.pick.method) || 'auto'], ['pickNeedKey', (S.pick && S.pick.needKey) || '']]
     .forEach(([id, val]) => {
       const box = $(id);
@@ -97,7 +98,7 @@ function buildPresetButtons() {
 }
 
 /* 每一段按钮组：点一下只改本地状态，保存时才落盘 */
-[['targetMode'], ['engine'], ['actionMode'], ['transStyle'], ['panelTheme'], ['answerExplain'],
+[['targetMode'], ['engine'], ['actionMode'], ['transStyle'], ['panelTheme'], ['answerExplain'], ['sound'],
  ['pickMethod'], ['pickNeedKey']]
   .forEach(([id]) => {
     const box = $(id);
@@ -106,6 +107,7 @@ function buildPresetButtons() {
       const b = e.target.closest('button[data-v]');
       if (!b) return;
       if (id === 'pickMethod') { S.pick = Object.assign({}, S.pick, { method: b.dataset.v }); paint(); return; }
+      if (id === 'sound') { S.sound = b.dataset.v === 'on'; paint(); return; }
       if (id === 'pickNeedKey') { S.pick = Object.assign({}, S.pick, { needKey: b.dataset.v }); paint(); return; }
       S[id] = b.dataset.v;
       paint();
@@ -119,6 +121,7 @@ function collect() {
     actionMode: S.actionMode,
     transStyle: S.transStyle,
     panelTheme: S.panelTheme,
+    sound: S.sound !== false,
     answerExplain: S.answerExplain,
     clip: {
       auto: $('clipAuto').checked,

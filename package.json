@@ -1,7 +1,7 @@
 {
   "name": "sidtrans-desktop",
   "productName": "旁译桌面版",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "旁译桌面版 · SideTrans Desktop —— Windows 桌面悬浮球翻译（剪贴板即时译 / 截屏本地取字）",
   "type": "module",
@@ -17,7 +17,9 @@
   "build": {
     "appId": "local.sidtrans.desktop",
     "productName": "旁译桌面版",
-    "directories": { "output": "release/dist" },
+    "directories": {
+      "output": "release/dist"
+    },
     "files": [
       "main.js",
       "lib/**",
@@ -30,10 +32,20 @@
       "package.json"
     ],
     "extraResources": [
-      { "from": "tools", "to": "tools" }
+      {
+        "from": "tools",
+        "to": "tools"
+      }
     ],
     "win": {
-      "target": [{ "target": "portable", "arch": ["x64"] }],
+      "target": [
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
       "icon": "assets/icon-256.png",
       "artifactName": "SideTrans-Desktop-${version}.exe"
     }

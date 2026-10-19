@@ -306,11 +306,85 @@ window.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') window.st.closePanel();
 });
 
+/* ---------------- 反馈：落座的动效 + 一个合成的声音 ---------------- */
+/* 跟浏览器版同一套：声音是算出来的，包里不多一个音频文件。 */
+let AC = null, lastSfxAt = 0, soundOn = true;
+const SFX = {
+  seat: { f0: 1240, f1: 780,  dur: 0.10, gain: 0.052, type: 'triangle', click: 0.020 },
+  done: { f0: 1320, f1: 1320, dur: 0.15, gain: 0.042, type: 'sine',     click: 0 },
+  fail: { f0: 340,  f1: 226,  dur: 0.17, gain: 0.048, type: 'sine',     click: 0 }
+};
+
+function audioCtx() {
+  if (AC) return AC;
+  try {
+    const C = window.AudioContext || window.webkitAudioContext;
+    if (!C) return null;
+    AC = new C();
+  } catch (e) { AC = null; }
+  return AC;
+}
+
+function sfx(name) {
+  if (!soundOn) return;
+  const spec = SFX[name];
+  if (!spec) return;
+  const now = Date.now();
+  if (now - lastSfxAt < 70) return;
+  lastSfxAt = now;
+  try {
+    const c = audioCtx();
+    if (!c) return;
+    if (c.state === 'suspended') c.resume();
+    const t = c.currentTime + 0.002;
+    const g = c.createGain();
+    g.connect(c.destination);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(spec.gain, t + 0.006);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + spec.dur);
+    const o = c.createOscillator();
+    o.type = spec.type;
+    o.frequency.setValueAtTime(spec.f0, t);
+    if (spec.f1 !== spec.f0) o.frequency.exponentialRampToValueAtTime(spec.f1, t + spec.dur * 0.9);
+    o.connect(g);
+    o.start(t);
+    o.stop(t + spec.dur + 0.02);
+    if (spec.click > 0) {
+      const n = Math.max(1, Math.floor(c.sampleRate * 0.012));
+      const buf = c.createBuffer(1, n, c.sampleRate);
+      const d = buf.getChannelData(0);
+      for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / n, 2);
+      const src = c.createBufferSource();
+      src.buffer = buf;
+      const hp = c.createBiquadFilter();
+      hp.type = 'highpass'; hp.frequency.value = 2200;
+      const ng = c.createGain(); ng.gain.value = spec.click;
+      src.connect(hp); hp.connect(ng); ng.connect(c.destination);
+      src.start(t);
+    }
+  } catch (e) {}
+}
+
+/* 面板每次都重新填内容，所以入场动效每次都算新的一次 */
+function popIn() {
+  if (!panel) return;
+  try {
+    panel.style.transition = 'none';
+    panel.style.transformOrigin = '50% 8%';
+    panel.style.transform = 'translateY(6px) scale(.965)';
+    void panel.offsetHeight;
+    panel.style.transition = 'transform .26s cubic-bezier(.22,1.25,.36,1)';
+    panel.style.transform = 'translateY(0) scale(1)';
+  } catch (e) {}
+}
+
 /* ---------------- 来自主进程的推送 ---------------- */
 
 window.st.onShow((p) => {
   if (!p) return;
   if (p.settings) applySettings(p.settings);
+  /* 只有“真的换了内容”才响；同一条结果陆续回填的那几次不响 */
+  if (!(p.result && p.result.pending)) { popIn(); sfx('seat'); }
   if (p.result && p.result.pending) {
     cur.text = p.text || '';
     cur.mode = p.result.mode || cur.mode;
@@ -327,6 +401,7 @@ window.st.onShow((p) => {
 
 function applySettings(s) {
   S = Object.assign({}, S, s || {});
+  soundOn = !(s && s.sound === false);
   if (!cur.text && s && s.actionMode) cur.mode = s.actionMode;
   renderResult();
 }

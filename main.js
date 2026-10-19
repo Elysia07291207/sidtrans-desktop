@@ -200,7 +200,9 @@ function createPanel() {
     alwaysOnTop: true, show: false, hasShadow: false, maximizable: false, fullscreenable: false,
     webPreferences: {
       preload: PRELOAD, contextIsolation: true, nodeIntegration: false, sandbox: false,
-      backgroundThrottling: false
+      backgroundThrottling: false,
+      /* 面板是程序弹出来的，没有点击手势；不放开这条，落座那一声永远不开声 */
+      autoplayPolicy: 'no-user-gesture-required'
     }
   });
   panelWin.setAlwaysOnTop(true, 'screen-saver');
@@ -263,6 +265,7 @@ function publicSettings() {
     answerExplain: s.answerExplain,
     transStyle: s.transStyle,
     panelTheme: s.panelTheme,
+    sound: s.sound !== false,
     maxLen: s.maxLen,
     clip: Object.assign({}, s.clip),
     shortcuts: Object.assign({}, s.shortcuts),

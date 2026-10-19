@@ -39,6 +39,7 @@ function paintSegs() {
   [['targetMode', S.targetMode], ['engine', S.engine], ['actionMode', S.actionMode],
    ['transStyle', S.transStyle], ['panelTheme', S.panelTheme], ['answerExplain', S.answerExplain],
    ['sound', S.sound === false ? 'off' : 'on'],
+   ['honorific', S.honorific ? 'on' : 'off'], ['keepPassive', S.keepPassive ? 'on' : 'off'],
    ['pickMethod', (S.pick && S.pick.method) || 'auto'], ['pickNeedKey', (S.pick && S.pick.needKey) || '']]
     .forEach(([id, val]) => {
       const box = $(id);
@@ -98,7 +99,7 @@ function buildPresetButtons() {
 }
 
 /* 每一段按钮组：点一下只改本地状态，保存时才落盘 */
-[['targetMode'], ['engine'], ['actionMode'], ['transStyle'], ['panelTheme'], ['answerExplain'], ['sound'],
+[['targetMode'], ['engine'], ['actionMode'], ['transStyle'], ['panelTheme'], ['answerExplain'], ['sound'], ['honorific'], ['keepPassive'],
  ['pickMethod'], ['pickNeedKey']]
   .forEach(([id]) => {
     const box = $(id);
@@ -108,6 +109,8 @@ function buildPresetButtons() {
       if (!b) return;
       if (id === 'pickMethod') { S.pick = Object.assign({}, S.pick, { method: b.dataset.v }); paint(); return; }
       if (id === 'sound') { S.sound = b.dataset.v === 'on'; paint(); return; }
+      if (id === 'honorific') { S.honorific = b.dataset.v === 'on'; paint(); return; }
+      if (id === 'keepPassive') { S.keepPassive = b.dataset.v === 'on'; paint(); return; }
       if (id === 'pickNeedKey') { S.pick = Object.assign({}, S.pick, { needKey: b.dataset.v }); paint(); return; }
       S[id] = b.dataset.v;
       paint();
@@ -121,6 +124,10 @@ function collect() {
     actionMode: S.actionMode,
     transStyle: S.transStyle,
     panelTheme: S.panelTheme,
+    native: $('nativeLang') ? $('nativeLang').value : (S.native || 'zh-CN'),
+    targetMode: $('targetLang') && $('targetLang').value !== 'auto' ? $('targetLang').value : (S.targetMode || 'auto'),
+    honorific: !!S.honorific,
+    keepPassive: !!S.keepPassive,
     sound: S.sound !== false,
     answerExplain: S.answerExplain,
     clip: {
@@ -202,4 +209,33 @@ window.st.onSettings((s) => { S = s; paint(); });
   buildPresetButtons();
   S = await window.st.getSettings();
   paint();
+})();
+
+
+/* ---------------- 语种下拉（与 lib/engine.js 的 LANGS 同一套） ---------------- */
+const LANG_OPTIONS = [
+  ['zh-CN', '简体中文'], ['zh-TW', '繁體中文'], ['en', '英语'], ['ja', '日语'], ['ko', '韩语'],
+  ['fr', '法语'], ['de', '德语'], ['es', '西班牙语'], ['pt', '葡萄牙语'], ['it', '意大利语'],
+  ['ru', '俄语'], ['ar', '阿拉伯语'], ['th', '泰语'], ['vi', '越南语'], ['id', '印尼语'],
+  ['tr', '土耳其语'], ['nl', '荷兰语'], ['pl', '波兰语']
+];
+(function fillLangs() {
+  const add = (sel) => {
+    const box = $(sel);
+    if (!box) return;
+    LANG_OPTIONS.forEach(([v, n]) => {
+      const o = document.createElement('option');
+      o.value = v; o.textContent = n;
+      box.appendChild(o);
+    });
+  };
+  add('nativeLang'); add('targetLang');
+  if ($('nativeLang')) $('nativeLang').value = S.native || 'zh-CN';
+  if ($('targetLang')) $('targetLang').value = (S.targetMode && S.targetMode !== 'auto') ? S.targetMode : 'auto';
+  paint();
+  /* 换了语种下拉就重画一次，保存时统一收 */
+  ['nativeLang', 'targetLang'].forEach(id => {
+    const box = $(id);
+    if (box) box.addEventListener('change', paint);
+  });
 })();

@@ -156,10 +156,10 @@ console.log('[1] 语法与文件');
 console.log('\n[2] 引擎：判定、方向、提示词');
 {
   t('语言判定：中日韩 vs 拉丁', () => {
-    eq(detectLang('你好，世界'), 'zh');
+    eq(detectLang('你好，世界'), 'zh-CN');
     eq(detectLang('Hello world'), 'en');
     eq(detectLang('12345 -=-'), 'unknown');
-    eq(detectLang('这是 hello 混排的一段话'), 'zh', '汉字多就算中文');
+    eq(detectLang('这是 hello 混排的一段话'), 'zh-CN', '汉字多就算中文');
     return '4 例';
   });
 
@@ -178,7 +178,8 @@ console.log('\n[2] 引擎：判定、方向、提示词');
     has(s, '只输出译文本身', '硬要求丢了');
     has(s, '[[NOT_TEXT]]', '乱码不硬翻的底线丢了');
     const bare = buildTransSystem({ prompt: '' }, 'zh-CN', 'daily', 0, 0);
-    has(bare, '简体中文', '目标语言没写进去');
+    /* 1.0.0 起提示词里写的是英文语种名（十八种里有印尼语、波兰语这类，英文名更不容易被模型读歪） */
+    has(bare, 'Simplified Chinese', '目标语言没写进去');
     return 'ok';
   });
 

@@ -1,7 +1,7 @@
 {
   "name": "sidtrans-desktop",
   "productName": "旁译桌面版",
-  "version": "0.1.1",
+  "version": "1.0.0",
   "private": true,
   "description": "旁译桌面版 · SideTrans Desktop —— Windows 桌面悬浮球翻译（剪贴板即时译 / 截屏本地取字）",
   "type": "module",
